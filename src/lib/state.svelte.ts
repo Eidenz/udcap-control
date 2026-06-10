@@ -64,6 +64,30 @@ export const saveSpace = () => ls?.setItem("udcap.space", JSON.stringify(spaceCo
 export const saveGrip = () => ls?.setItem("udcap.grip", JSON.stringify(gripConfig));
 export const saveCurlGain = () => ls?.setItem("udcap.gain", String(curl.gain));
 
+// Calibration audio cues. Driven globally off calib_state so they play whoever
+// triggered calibration (GUI button *or* the glove menu button), on any tab.
+export const calibSound = $state({ on: ls?.getItem("udcap.calibSound") !== "0" });
+export const toggleCalibSound = () => {
+  calibSound.on = !calibSound.on;
+  ls?.setItem("udcap.calibSound", calibSound.on ? "1" : "0");
+};
+const CALIB_SOUNDS: Record<number, string> = {
+  7: "start", // get ready
+  1: "fist",
+  2: "together",
+  3: "spread",
+  4: "captured",
+  5: "done",
+};
+function playCalib(name: string) {
+  if (!calibSound.on) return;
+  try {
+    new Audio(`/sounds/${name}.mp3`).play().catch(() => {});
+  } catch {
+    /* missing file / no audio — ignore */
+  }
+}
+
 // Push any *custom* saved alignment to the shm. Built-in modes are left alone:
 // the server already wrote those defaults at startup.
 export function applySavedToShm() {
@@ -80,6 +104,7 @@ export function applySavedToShm() {
 
 let timer: ReturnType<typeof setInterval> | undefined;
 let shmWasPresent = false;
+let prevCalibState = 0;
 
 async function tick() {
   try {
@@ -88,6 +113,13 @@ async function tick() {
     const present = !!app.status?.shm && app.status.shm.server_pid !== 0;
     if (present && !shmWasPresent) applySavedToShm();
     shmWasPresent = present;
+
+    const cs = app.status?.shm?.calib_state ?? 0;
+    if (cs !== prevCalibState) {
+      const snd = CALIB_SOUNDS[cs];
+      if (snd) playCalib(snd);
+      prevCalibState = cs;
+    }
   } catch {
     app.connected = false;
   }

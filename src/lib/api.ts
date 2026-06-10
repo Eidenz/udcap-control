@@ -50,6 +50,7 @@ export const CMD = {
   CALIB_SPREAD: 4,
   CALIB_COMPLETE: 5,
   CALIB_CANCEL: 6,
+  CALIB_AUTO: 7,
 } as const;
 
 export const CALIB = {

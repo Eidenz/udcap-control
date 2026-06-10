@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { app } from "$lib/state.svelte";
+  import { onMount } from "svelte";
+  import { app, calibSound, toggleCalibSound } from "$lib/state.svelte";
   import { sendCommand, CMD, FINGERS } from "$lib/api";
 
   const shm = $derived(app.status?.shm ?? null);
@@ -8,66 +9,40 @@
   const linked = $derived(hands.filter((h) => h.present && h.link === 3).length);
 
   const poses = [
-    { emoji: "✊", title: "Make a fist", hint: "Curl all fingers loosely.", cmd: CMD.CALIB_FIST, sound: "fist" },
-    { emoji: "🤚", title: "Fingers together", hint: "Flat hand, fingers straight and touching.", cmd: CMD.CALIB_TOGETHER, sound: "together" },
-    { emoji: "🖐️", title: "Spread fingers", hint: "Flat hand, fingers spread wide apart.", cmd: CMD.CALIB_SPREAD, sound: "spread" },
+    { emoji: "✊", title: "Make a fist", hint: "Curl all fingers loosely." },
+    { emoji: "🤚", title: "Fingers together", hint: "Flat hand, fingers straight and touching." },
+    { emoji: "🖐️", title: "Spread fingers", hint: "Flat hand, fingers spread wide apart." },
   ];
+  const HOLD = 4;
+  const READY = 3;
 
-  const HOLD = 4; // seconds to hold each pose before capture
+  // The server drives the timed sequence (so the glove button works too); we
+  // just reflect calib_state. 7=READY, 1=STARTED .. 4=GOT_SPREAD, 5=DONE.
+  const calibState = $derived(shm?.calib_state ?? 0);
+  const phase = $derived(
+    calibState === 5
+      ? "done"
+      : calibState === 7 || (calibState >= 1 && calibState <= 4)
+        ? "running"
+        : "intro",
+  );
+  const getReady = $derived(calibState === 7);
+  const poseIndex = $derived(Math.max(0, Math.min(2, calibState - 1)));
+  const capturing = $derived(calibState === 4);
 
-  let phase = $state<"intro" | "running" | "done">("intro");
-  let poseIndex = $state(0);
-  let countdown = $state(0); // seconds remaining; 0 = capturing
-  let cancelled = false;
+  let countdown = $state(READY);
+  $effect(() => {
+    countdown = calibState === 7 ? READY : HOLD; // reset on each step change
+  });
+  onMount(() => {
+    const t = setInterval(() => {
+      if (countdown > 0) countdown -= 1;
+    }, 1000);
+    return () => clearInterval(t);
+  });
 
-  // Voice/sound cues — drop matching mp3s in static/sounds/ (see its README).
-  const ls = typeof localStorage !== "undefined" ? localStorage : null;
-  let soundOn = $state(ls?.getItem("udcap.calibSound") !== "0");
-  function toggleSound() {
-    soundOn = !soundOn;
-    ls?.setItem("udcap.calibSound", soundOn ? "1" : "0");
-  }
-  function play(name: string) {
-    if (!soundOn) return;
-    try {
-      new Audio(`/sounds/${name}.mp3`).play().catch(() => {});
-    } catch {
-      /* missing file / no audio — ignore */
-    }
-  }
-
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-  async function run() {
-    cancelled = false;
-    phase = "running";
-    play("start");
-    await sendCommand(CMD.CALIB_START);
-    for (let i = 0; i < poses.length; i++) {
-      poseIndex = i;
-      play(poses[i].sound);
-      for (let s = HOLD; s > 0; s--) {
-        if (cancelled) return;
-        countdown = s;
-        await sleep(1000);
-      }
-      if (cancelled) return;
-      countdown = 0; // "captured" flash
-      play("captured");
-      await sendCommand(poses[i].cmd);
-      await sleep(500);
-    }
-    if (cancelled) return;
-    play("done");
-    await sendCommand(CMD.CALIB_COMPLETE);
-    phase = "done";
-  }
-
-  function cancel() {
-    cancelled = true;
-    sendCommand(CMD.CALIB_CANCEL);
-    phase = "intro";
-  }
+  const start = () => sendCommand(CMD.CALIB_AUTO);
+  const cancel = () => sendCommand(CMD.CALIB_CANCEL);
 </script>
 
 <div class="screen">
@@ -82,8 +57,8 @@
       <div class="center">
         <h2>Calibrate both hands</h2>
         <p class="muted">
-          Put the gloves on. After you press start, follow the on-screen poses — each is captured
-          automatically after a short countdown, so keep both hands free.
+          Put the gloves on, then start — or press the <b>side (power) button</b> on a glove any time,
+          even in VR. Follow the poses; each is captured automatically after a short countdown.
         </p>
         <div class="poserow">
           {#each poses as p}
@@ -91,39 +66,46 @@
           {/each}
         </div>
         <div class="actions">
-          <button class="btn filled state-layer" onclick={run}>Start calibration</button>
-          <button class="btn text state-layer" onclick={toggleSound} title="Voice cues">
-            {soundOn ? "🔊 Sound on" : "🔇 Sound off"}
+          <button class="btn filled state-layer" onclick={start}>Start calibration</button>
+          <button class="btn text state-layer" onclick={toggleCalibSound} title="Voice cues">
+            {calibSound.on ? "🔊 Sound on" : "🔇 Sound off"}
           </button>
         </div>
         {#if linked === 1}<p class="warn">Only one glove is linked — the other won't be calibrated.</p>{/if}
       </div>
     {:else if phase === "running"}
-      {@const pose = poses[poseIndex]}
       <div class="center">
-        <div class="steps">
-          {#each poses as _, s}<span class="sdot" class:done={poseIndex > s} class:active={poseIndex === s}></span>{/each}
-        </div>
-        <div class="big">{pose.emoji}</div>
-        <h2>{pose.title}</h2>
-        <p class="muted">{pose.hint}</p>
+        {#if getReady}
+          <div class="big">⏳</div>
+          <h2>Get ready…</h2>
+          <p class="muted">Put the gloves on and relax your hands.</p>
+          <div class="counter">{countdown > 0 ? countdown : "…"}</div>
+        {:else}
+          {@const pose = poses[poseIndex]}
+          <div class="steps">
+            {#each poses as _, s}<span class="sdot" class:done={poseIndex > s} class:active={poseIndex === s}></span>{/each}
+          </div>
+          <div class="big">{pose.emoji}</div>
+          <h2>{pose.title}</h2>
+          <p class="muted">{pose.hint}</p>
 
-        <div class="counter" class:capturing={countdown === 0}>
-          {#if countdown > 0}{countdown}{:else}Captured ✓{/if}
-        </div>
+          <div class="counter" class:capturing={capturing || countdown === 0}>
+            {#if capturing}Captured ✓{:else if countdown > 0}{countdown}{:else}…{/if}
+          </div>
 
-        <div class="preview">
-          {#each hands as h, hi}
-            {#if h.present}
-              <div class="phand">
-                <span class="plabel">{hi === 0 ? "L" : "R"}</span>
-                {#each FINGERS as _, i}
-                  <div class="pbar"><div class="pfill" style="height:{(h.curl[i] ?? 0) * 100}%"></div></div>
-                {/each}
-              </div>
-            {/if}
-          {/each}
-        </div>
+          <div class="preview">
+            {#each hands as h, hi}
+              {#if h.present}
+                <div class="phand">
+                  <span class="plabel">{hi === 0 ? "L" : "R"}</span>
+                  {#each FINGERS as _, i}
+                    <div class="pbar"><div class="pfill" style="height:{(h.curl[i] ?? 0) * 100}%"></div></div>
+                  {/each}
+                </div>
+              {/if}
+            {/each}
+          </div>
+        {/if}
 
         <button class="btn text state-layer" onclick={cancel}>Cancel</button>
       </div>
@@ -132,7 +114,7 @@
         <div class="big">✅</div>
         <h2>Calibration complete</h2>
         <p class="muted">Finger tracking should now match your hands.</p>
-        <button class="btn tonal state-layer" onclick={() => (phase = "intro")}>Calibrate again</button>
+        <button class="btn tonal state-layer" onclick={start}>Calibrate again</button>
       </div>
     {/if}
   </div>
@@ -165,7 +147,7 @@
   .muted {
     color: var(--muted);
     margin: 0;
-    max-width: 440px;
+    max-width: 460px;
   }
   .warn {
     color: var(--warn);
