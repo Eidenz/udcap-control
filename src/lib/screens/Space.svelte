@@ -26,8 +26,8 @@
 
   const presets: Record<string, { left: any; right: any }> = {
     "Vive Tracker 3.0": {
-      left: { pos: [0.1, 0.1, -0.05], deg: [45, 85, 0] },
-      right: { pos: [-0.1, 0.1, -0.05], deg: [45, -85, 0] },
+      left: { pos: [0, 0, 0], deg: [45, 85, 0] },
+      right: { pos: [0, 0, 0], deg: [45, -85, 0] },
     },
     Custom: { left: { pos: [0, 0, 0], deg: [0, 0, 0] }, right: { pos: [0, 0, 0], deg: [0, 0, 0] } },
   };
