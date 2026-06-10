@@ -55,5 +55,5 @@ udcap-control (Tauri)
 ```
 
 The `udcap-server` binary is built from the
-[UdCap-Community-HandDriver-Core](../UdCap-Community-HandDriver-Core) repo and
+[UdCap-Community-HandDriver-Core](https://git.eidenz.moe/Eidenz/UdCap-Community-HandDriver-Core) repo and
 bundled into the app (static-linked, system libs only) via `sync-server.sh`.
