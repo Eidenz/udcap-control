@@ -1,4 +1,14 @@
-import { poll, setServerBin, setOffset, setGrip, setCurlGain, setBtnMap, setAnalog, type Status } from "./api";
+import {
+  poll,
+  setServerBin,
+  setOffset,
+  setGrip,
+  setCurlGain,
+  setSplayGain,
+  setBtnMap,
+  setAnalog,
+  type Status,
+} from "./api";
 
 const ls = typeof localStorage !== "undefined" ? localStorage : null;
 const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));
@@ -58,7 +68,11 @@ export const spaceConfig = $state(
   loadJSON("udcap.space", { preset: "Vive Tracker 3.0", offsets: clone(BUILTIN_TRACKER) }),
 );
 export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", values: clone(BUILTIN_GRIP) }));
-export const curl = $state({ gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)) });
+export const curl = $state({
+  gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)),
+  splay: Number(ls?.getItem("udcap.splay") ?? 1),
+});
+export const saveSplay = () => ls?.setItem("udcap.splay", String(curl.splay));
 
 // Per-hand input mapping (button map + analog trigger/grip config).
 export type HandIO = {
@@ -179,6 +193,7 @@ export function applySavedToShm() {
     setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
   }
   setCurlGain(curl.gain).catch(() => {});
+  setSplayGain(curl.splay).catch(() => {});
   applyHandIo(0);
   applyHandIo(1);
 }

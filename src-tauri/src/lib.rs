@@ -155,6 +155,13 @@ fn set_curl_gain(state: State<AppState>, gain: f32) {
 }
 
 #[tauri::command]
+fn set_splay_gain(state: State<AppState>, gain: f32) {
+    if let Some(m) = state.shm.lock().unwrap().as_ref() {
+        m.set_splay_gain(gain);
+    }
+}
+
+#[tauri::command]
 fn set_btn_map(state: State<AppState>, hand: usize, map: [u8; 6]) {
     if let Some(m) = state.shm.lock().unwrap().as_ref() {
         m.set_btn_map(hand, map);
@@ -230,6 +237,7 @@ pub fn run() {
             set_curl_range,
             set_grip,
             set_curl_gain,
+            set_splay_gain,
             set_btn_map,
             set_analog,
             test_vibration,

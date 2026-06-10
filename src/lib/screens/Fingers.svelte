@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { app, curl, saveCurlGain, CURL_GAIN_MAX } from "$lib/state.svelte";
-  import { FINGERS, setCurlRange, setCurlGain } from "$lib/api";
+  import { app, curl, saveCurlGain, saveSplay, CURL_GAIN_MAX } from "$lib/state.svelte";
+  import { FINGERS, setCurlRange, setCurlGain, setSplayGain } from "$lib/api";
   import FingerRange from "$lib/components/FingerRange.svelte";
 
   const GAIN_MIN = 0.3;
@@ -8,6 +8,11 @@
     curl.gain = Math.round(v * 100) / 100;
     setCurlGain(curl.gain).catch(() => {});
     saveCurlGain();
+  }
+  function editSplay(v: number) {
+    curl.splay = Math.round(v * 10) / 10;
+    setSplayGain(curl.splay).catch(() => {});
+    saveSplay();
   }
 
   const shm = $derived(app.status?.shm ?? null);
@@ -103,6 +108,22 @@
       value={curl.gain}
       oninput={(e) => editGain(parseFloat(e.currentTarget.value))}
     />
+
+    <div class="sh splayrow">
+      <div>
+        <h3>Finger splay</h3>
+        <p class="muted">Sideways finger spread. 0 = off; flip to a negative value if it spreads the wrong way.</p>
+      </div>
+      <span class="sval">{curl.splay.toFixed(1)}×</span>
+    </div>
+    <input
+      type="range"
+      min="-4"
+      max="4"
+      step="0.5"
+      value={curl.splay}
+      oninput={(e) => editSplay(parseFloat(e.currentTarget.value))}
+    />
   </div>
 
   {#if !live}
@@ -153,6 +174,9 @@
     justify-content: space-between;
     gap: 16px;
     margin-bottom: 12px;
+  }
+  .splayrow {
+    margin-top: 20px;
   }
   .sval {
     font-size: 20px;

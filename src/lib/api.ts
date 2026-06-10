@@ -84,6 +84,7 @@ export const setCurlRange = (hand: number, finger: number, min: number, max: num
 export const setGrip = (hand: number, pos: number[], deg: number[]) =>
   invoke("set_grip", { hand, pos, deg });
 export const setCurlGain = (gain: number) => invoke("set_curl_gain", { gain });
+export const setSplayGain = (gain: number) => invoke("set_splay_gain", { gain });
 export const setBtnMap = (hand: number, map: number[]) => invoke("set_btn_map", { hand, map });
 export const setAnalog = (
   hand: number,
