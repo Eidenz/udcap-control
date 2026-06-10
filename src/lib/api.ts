@@ -33,6 +33,7 @@ export interface ShmView {
   calib_state: number;
   cmd_ack: number;
   cmd_seq: number;
+  curl_gain: number;
   hands: HandView[];
 }
 
@@ -74,6 +75,7 @@ export const setCurlRange = (hand: number, finger: number, min: number, max: num
   invoke("set_curl_range", { hand, finger, min, max });
 export const setGrip = (hand: number, pos: number[], deg: number[]) =>
   invoke("set_grip", { hand, pos, deg });
+export const setCurlGain = (gain: number) => invoke("set_curl_gain", { gain });
 export const testVibration = (hand: number, strength: number, duration: number) =>
   invoke("test_vibration", { hand, strength, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");

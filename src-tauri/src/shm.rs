@@ -8,7 +8,7 @@ use std::sync::atomic::{fence, AtomicU32, Ordering};
 
 pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
-pub const SHM_VERSION: u32 = 7;
+pub const SHM_VERSION: u32 = 8;
 pub const HAND_COUNT: usize = 2;
 
 const MAX_BEND_RAD: f32 = 1.35;
@@ -87,6 +87,7 @@ struct Shm {
     cmd_arg: i32,
     cmd_ack: u32,
     calib_state: u32,
+    curl_gain: f32,
 }
 
 /* ---- Serializable views sent to the frontend ---- */
@@ -126,6 +127,7 @@ pub struct ShmView {
     pub calib_state: u32,
     pub cmd_ack: u32,
     pub cmd_seq: u32,
+    pub curl_gain: f32,
     pub hands: Vec<HandView>,
 }
 
@@ -232,6 +234,7 @@ impl ShmMap {
             calib_state: g.calib_state,
             cmd_ack: g.cmd_ack,
             cmd_seq: g.cmd_seq,
+            curl_gain: g.curl_gain,
             hands: (0..HAND_COUNT).map(|i| self.read_hand(i)).collect(),
         }
     }
@@ -265,6 +268,12 @@ impl ShmMap {
         let h = unsafe { &mut (*self.ptr).hands[hand] };
         h.curl_min[finger] = min;
         h.curl_max[finger] = max;
+    }
+
+    pub fn set_curl_gain(&self, gain: f32) {
+        unsafe {
+            (*self.ptr).curl_gain = gain;
+        }
     }
 
     pub fn set_grip(&self, hand: usize, pos: [f32; 3], deg: [f32; 3]) {

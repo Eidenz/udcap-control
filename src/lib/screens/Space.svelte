@@ -11,6 +11,7 @@
   } from "$lib/state.svelte";
   import { setOffset, setGrip } from "$lib/api";
   import Select from "$lib/components/Select.svelte";
+  import Segmented from "$lib/components/Segmented.svelte";
 
   type Hand = "left" | "right";
   type Kind = "pos" | "deg" | "gripPos" | "grip";
@@ -128,7 +129,7 @@
 
   <div class="section">
     <span>Grip / menu <em>— position &amp; rotation of VRChat's menu anchor</em></span>
-    <Select bind:value={gripConfig.mode} options={["Built-in", "Custom"]} onchange={selectGrip} />
+    <Segmented bind:value={gripConfig.mode} options={["Built-in", "Custom"]} onchange={selectGrip} />
   </div>
   <div class="cols">
     {@render gripCard("left", "Left")}

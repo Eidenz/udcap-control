@@ -1,4 +1,4 @@
-import { poll, setServerBin, setOffset, setGrip, type Status } from "./api";
+import { poll, setServerBin, setOffset, setGrip, setCurlGain, type Status } from "./api";
 
 const ls = typeof localStorage !== "undefined" ? localStorage : null;
 const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));
@@ -39,16 +39,20 @@ export const BUILTIN_TRACKER = {
 };
 export const BUILTIN_GRIP = {
   left: { pos: [0.06, -0.06, 0.01], rot: [70, -5, -55] },
-  right: { pos: [0, -0.06, 0.01], rot: [55, -5, 70] },
+  right: { pos: [-0.06, -0.06, 0.01], rot: [70, -5, 75] },
 };
+
+export const CURL_GAIN_MAX = 1.5;
 
 export const spaceConfig = $state(
   loadJSON("udcap.space", { preset: "Vive Tracker 3.0", offsets: clone(BUILTIN_TRACKER) }),
 );
 export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", values: clone(BUILTIN_GRIP) }));
+export const curl = $state({ gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)) });
 
 export const saveSpace = () => ls?.setItem("udcap.space", JSON.stringify(spaceConfig));
 export const saveGrip = () => ls?.setItem("udcap.grip", JSON.stringify(gripConfig));
+export const saveCurlGain = () => ls?.setItem("udcap.gain", String(curl.gain));
 
 // Push any *custom* saved alignment to the shm. Built-in modes are left alone:
 // the server already wrote those defaults at startup.
@@ -61,6 +65,7 @@ export function applySavedToShm() {
     setGrip(0, gripConfig.values.left.pos, gripConfig.values.left.rot).catch(() => {});
     setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
   }
+  setCurlGain(curl.gain).catch(() => {});
 }
 
 let timer: ReturnType<typeof setInterval> | undefined;
