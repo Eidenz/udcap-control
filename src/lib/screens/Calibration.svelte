@@ -8,9 +8,9 @@
   const linked = $derived(hands.filter((h) => h.present && h.link === 3).length);
 
   const poses = [
-    { emoji: "✊", title: "Make a fist", hint: "Curl all fingers loosely.", cmd: CMD.CALIB_FIST },
-    { emoji: "🤚", title: "Fingers together", hint: "Flat hand, fingers straight and touching.", cmd: CMD.CALIB_TOGETHER },
-    { emoji: "🖐️", title: "Spread fingers", hint: "Flat hand, fingers spread wide apart.", cmd: CMD.CALIB_SPREAD },
+    { emoji: "✊", title: "Make a fist", hint: "Curl all fingers loosely.", cmd: CMD.CALIB_FIST, sound: "fist" },
+    { emoji: "🤚", title: "Fingers together", hint: "Flat hand, fingers straight and touching.", cmd: CMD.CALIB_TOGETHER, sound: "together" },
+    { emoji: "🖐️", title: "Spread fingers", hint: "Flat hand, fingers spread wide apart.", cmd: CMD.CALIB_SPREAD, sound: "spread" },
   ];
 
   const HOLD = 4; // seconds to hold each pose before capture
@@ -20,14 +20,32 @@
   let countdown = $state(0); // seconds remaining; 0 = capturing
   let cancelled = false;
 
+  // Voice/sound cues — drop matching mp3s in static/sounds/ (see its README).
+  const ls = typeof localStorage !== "undefined" ? localStorage : null;
+  let soundOn = $state(ls?.getItem("udcap.calibSound") !== "0");
+  function toggleSound() {
+    soundOn = !soundOn;
+    ls?.setItem("udcap.calibSound", soundOn ? "1" : "0");
+  }
+  function play(name: string) {
+    if (!soundOn) return;
+    try {
+      new Audio(`/sounds/${name}.mp3`).play().catch(() => {});
+    } catch {
+      /* missing file / no audio — ignore */
+    }
+  }
+
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   async function run() {
     cancelled = false;
     phase = "running";
+    play("start");
     await sendCommand(CMD.CALIB_START);
     for (let i = 0; i < poses.length; i++) {
       poseIndex = i;
+      play(poses[i].sound);
       for (let s = HOLD; s > 0; s--) {
         if (cancelled) return;
         countdown = s;
@@ -35,10 +53,12 @@
       }
       if (cancelled) return;
       countdown = 0; // "captured" flash
+      play("captured");
       await sendCommand(poses[i].cmd);
       await sleep(500);
     }
     if (cancelled) return;
+    play("done");
     await sendCommand(CMD.CALIB_COMPLETE);
     phase = "done";
   }
@@ -70,7 +90,12 @@
             <div class="posecard"><span class="pemoji">{p.emoji}</span><span>{p.title}</span></div>
           {/each}
         </div>
-        <button class="btn filled state-layer" onclick={run}>Start calibration</button>
+        <div class="actions">
+          <button class="btn filled state-layer" onclick={run}>Start calibration</button>
+          <button class="btn text state-layer" onclick={toggleSound} title="Voice cues">
+            {soundOn ? "🔊 Sound on" : "🔇 Sound off"}
+          </button>
+        </div>
         {#if linked === 1}<p class="warn">Only one glove is linked — the other won't be calibrated.</p>{/if}
       </div>
     {:else if phase === "running"}
@@ -131,6 +156,11 @@
   .big {
     font-size: 72px;
     line-height: 1;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .muted {
     color: var(--muted);
