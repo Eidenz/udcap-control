@@ -65,3 +65,10 @@ export const setServerBin = (path: string) => invoke("set_server_bin", { path })
 export const setOffset = (hand: number, pos: number[], deg: number[]) =>
   invoke("set_offset", { hand, pos, deg });
 export const sendCommand = (code: number) => invoke<number>("send_command", { code });
+
+export interface UdevStatus {
+  installed: boolean;
+  up_to_date: boolean;
+}
+export const udevStatus = () => invoke<UdevStatus>("udev_status");
+export const udevInstall = () => invoke("udev_install");

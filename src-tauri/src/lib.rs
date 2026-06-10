@@ -1,5 +1,6 @@
 mod server;
 mod shm;
+mod udev;
 
 use server::ServerProc;
 use shm::{ShmMap, ShmView};
@@ -37,17 +38,52 @@ fn poll(state: State<AppState>) -> Status {
     Status { server_running, shm }
 }
 
+// Find the udcap-server binary without any hard-coded paths: user override ->
+// bundled resource (packaged app) -> next to the executable -> dev binaries dir
+// -> PATH.
+fn resolve_server_bin(app: &tauri::AppHandle, override_path: &str) -> String {
+    use tauri::Manager;
+    if !override_path.is_empty() && std::path::Path::new(override_path).exists() {
+        return override_path.to_string();
+    }
+    if let Ok(p) = app.path().resolve("udcap-server", tauri::path::BaseDirectory::Resource) {
+        if p.exists() {
+            return p.to_string_lossy().into_owned();
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for name in ["udcap-server", "binaries/udcap-server"] {
+                let p = dir.join(name);
+                if p.exists() {
+                    return p.to_string_lossy().into_owned();
+                }
+            }
+        }
+    }
+    let dev = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries/udcap-server");
+    if dev.exists() {
+        return dev.to_string_lossy().into_owned();
+    }
+    "udcap-server".to_string()
+}
+
 #[tauri::command]
 fn server_start(
+    app: tauri::AppHandle,
     state: State<AppState>,
     tracker_left: String,
     tracker_right: String,
 ) -> Result<(), String> {
+    let bin = {
+        let s = state.server.lock().unwrap();
+        resolve_server_bin(&app, &s.bin)
+    };
     state
         .server
         .lock()
         .unwrap()
-        .start(&tracker_left, &tracker_right)?;
+        .start(&bin, &tracker_left, &tracker_right)?;
     // Give the server a moment to create the shm, then map it.
     std::thread::sleep(std::time::Duration::from_millis(700));
     *state.shm.lock().unwrap() = ShmMap::open().ok();
@@ -86,6 +122,16 @@ fn send_command(state: State<AppState>, code: u32) -> u32 {
     }
 }
 
+#[tauri::command]
+fn udev_status() -> udev::UdevStatus {
+    udev::status()
+}
+
+#[tauri::command]
+fn udev_install() -> Result<(), String> {
+    udev::install()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -101,6 +147,8 @@ pub fn run() {
             set_server_bin,
             set_offset,
             send_command,
+            udev_status,
+            udev_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

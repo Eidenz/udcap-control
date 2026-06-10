@@ -5,6 +5,7 @@
   import StatusScreen from "$lib/screens/Status.svelte";
   import CalibrationScreen from "$lib/screens/Calibration.svelte";
   import SpaceScreen from "$lib/screens/Space.svelte";
+  import WindowControls from "$lib/components/WindowControls.svelte";
 
   let tab = $state<"status" | "calibration" | "space">("status");
   let busy = $state(false);
@@ -70,8 +71,8 @@
   </nav>
 
   <div class="main">
-    <header class="topbar">
-      <div class="title">
+    <header class="topbar" data-tauri-drag-region>
+      <div class="title" data-tauri-drag-region>
         <h1>UDCAP Control</h1>
         <span class="subtitle">Udexreal gloves · Monado</span>
       </div>
@@ -97,6 +98,7 @@
         >
           {running ? "Stop server" : "Start server"}
         </button>
+        <WindowControls />
       </div>
     </header>
 

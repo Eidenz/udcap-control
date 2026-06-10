@@ -5,6 +5,7 @@ use std::process::{Child, Command, Stdio};
 #[derive(Default)]
 pub struct ServerProc {
     child: Option<Child>,
+    /// Optional user override for the server binary path ("" = auto-resolve).
     pub bin: String,
 }
 
@@ -12,16 +13,15 @@ impl ServerProc {
     pub fn new() -> Self {
         ServerProc {
             child: None,
-            // Default dev location; overridable from the UI.
-            bin: "/home/eidenz/PROJECTS/UdCap-Community-HandDriver-Core/build/udcap-server".into(),
+            bin: String::new(),
         }
     }
 
-    pub fn start(&mut self, tracker_left: &str, tracker_right: &str) -> Result<(), String> {
+    pub fn start(&mut self, bin: &str, tracker_left: &str, tracker_right: &str) -> Result<(), String> {
         if self.running() {
             return Ok(());
         }
-        let mut cmd = Command::new(&self.bin);
+        let mut cmd = Command::new(bin);
         // The GUI drives calibration via the command channel, so disable the
         // server's own startup calibration.
         cmd.arg("--no-cal");
@@ -32,9 +32,7 @@ impl ServerProc {
             cmd.args(["--tracker-right", tracker_right]);
         }
         cmd.stdin(Stdio::null());
-        let child = cmd
-            .spawn()
-            .map_err(|e| format!("failed to launch {}: {e}", self.bin))?;
+        let child = cmd.spawn().map_err(|e| format!("failed to launch {bin}: {e}"))?;
         self.child = Some(child);
         Ok(())
     }

@@ -1,0 +1,10 @@
+# UDCAP VR glove receiver dongles (WCH CH340 USB-serial, 1a86:7523).
+# Grants the local user access to both the raw USB device (libusb enumeration)
+# and the ttyUSB serial node, so no sudo/dialout is needed and access survives
+# unplug/replug.
+#
+# NOTE: CH340 is a generic chip, so this also matches other CH340 devices
+# (e.g. ESP32/Arduino boards). Harmless on a personal machine.
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="7523", TAG+="uaccess", MODE="0666"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"

@@ -1,8 +1,33 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { app } from "$lib/state.svelte";
-  import { FINGERS, type HandView } from "$lib/api";
+  import { FINGERS, udevStatus, udevInstall, type HandView, type UdevStatus } from "$lib/api";
 
   let { onCalibrate }: { onCalibrate: () => void } = $props();
+
+  let udev = $state<UdevStatus | null>(null);
+  let installing = $state(false);
+  const udevOk = $derived(!!udev && udev.installed && udev.up_to_date);
+
+  onMount(refreshUdev);
+  async function refreshUdev() {
+    try {
+      udev = await udevStatus();
+    } catch {
+      udev = null;
+    }
+  }
+  async function installUdev() {
+    installing = true;
+    try {
+      await udevInstall();
+      await refreshUdev();
+    } catch (_) {
+      /* user cancelled */
+    } finally {
+      installing = false;
+    }
+  }
 
   const shm = $derived(app.status?.shm ?? null);
   const live = $derived(!!shm && shm.server_pid !== 0);
@@ -67,6 +92,22 @@
 {/snippet}
 
 <div class="screen">
+  {#if udev && !udevOk}
+    <div class="card setup">
+      <div>
+        <h3>{udev.installed ? "Update device permissions" : "Set up device permissions"}</h3>
+        <p class="muted">
+          {udev.installed
+            ? "The installed udev rule is out of date — reinstall it."
+            : "Install a udev rule so the app can reach the glove dongles without sudo. Asks for your password once."}
+        </p>
+      </div>
+      <button class="btn filled state-layer" disabled={installing} onclick={installUdev}>
+        {installing ? "Installing…" : "Install"}
+      </button>
+    </div>
+  {/if}
+
   {#if !live}
     <div class="card banner">
       <p>The server isn't running. Press <b>Start server</b> (top right) to connect to your gloves.</p>
@@ -101,6 +142,16 @@
   .banner p {
     margin: 0;
     color: var(--on-surface-var);
+  }
+  .setup {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border: 1px solid var(--primary-container);
+  }
+  .setup p {
+    margin: 4px 0 0;
   }
   .gloves {
     display: grid;
