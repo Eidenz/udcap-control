@@ -1,14 +1,14 @@
 <script lang="ts">
   import { app, config, saveConfig } from "$lib/state.svelte";
-  import { setOffset } from "$lib/api";
+  import { setOffset, setGrip } from "$lib/api";
   import Select from "$lib/components/Select.svelte";
 
   type Hand = "left" | "right";
-  type Kind = "pos" | "deg";
+  type Kind = "pos" | "deg" | "gripPos" | "grip";
 
   const vals = $state({
-    left: { pos: [0, 0, 0], deg: [0, 0, 0] },
-    right: { pos: [0, 0, 0], deg: [0, 0, 0] },
+    left: { pos: [0, 0, 0], deg: [0, 0, 0], gripPos: [0, 0, 0], grip: [0, 0, 0] },
+    right: { pos: [0, 0, 0], deg: [0, 0, 0], gripPos: [0, 0, 0], grip: [0, 0, 0] },
   });
   let initialized = $state(false);
 
@@ -20,6 +20,10 @@
       vals.left.deg = [...h[0].offset_deg];
       vals.right.pos = [...h[1].offset_pos];
       vals.right.deg = [...h[1].offset_deg];
+      vals.left.gripPos = [...h[0].grip_pos];
+      vals.right.gripPos = [...h[1].grip_pos];
+      vals.left.grip = [...h[0].grip_rot];
+      vals.right.grip = [...h[1].grip_rot];
       initialized = true;
     }
   });
@@ -35,13 +39,17 @@
 
   const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
+  const idxOf = (hand: Hand) => (hand === "left" ? 0 : 1);
   function apply(hand: Hand) {
-    const idx = hand === "left" ? 0 : 1;
-    setOffset(idx, vals[hand].pos.map(r3), vals[hand].deg.map(r3)).catch(() => {});
+    setOffset(idxOf(hand), vals[hand].pos.map(r3), vals[hand].deg.map(r3)).catch(() => {});
+  }
+  function applyGrip(hand: Hand) {
+    setGrip(idxOf(hand), vals[hand].gripPos.map(r3), vals[hand].grip.map(r3)).catch(() => {});
   }
   function edit(hand: Hand, kind: Kind, axis: number, value: number) {
     vals[hand][kind][axis] = r3(value);
-    apply(hand);
+    if (kind === "grip" || kind === "gripPos") applyGrip(hand);
+    else apply(hand);
   }
   function applyPreset(name: string) {
     preset = name;
@@ -70,25 +78,30 @@
   </div>
 {/snippet}
 
+{#snippet axisRow(hand: Hand, label: string, unit: string, kind: Kind, step: number)}
+  <div class="group">
+    <span class="glabel">{label} <em>({unit})</em></span>
+    <div class="row">
+      {#each axes as a, i}
+        <div class="axis"><span>{a}</span>{@render field(hand, kind, i, step)}</div>
+      {/each}
+    </div>
+  </div>
+{/snippet}
+
 {#snippet handCard(hand: Hand, name: string)}
   <div class="card">
     <h3>{name} hand</h3>
-    <div class="group">
-      <span class="glabel">Position <em>(m)</em></span>
-      <div class="row">
-        {#each axes as a, i}
-          <div class="axis"><span>{a}</span>{@render field(hand, "pos", i, 0.01)}</div>
-        {/each}
-      </div>
-    </div>
-    <div class="group">
-      <span class="glabel">Rotation <em>(°)</em></span>
-      <div class="row">
-        {#each axes as a, i}
-          <div class="axis"><span>{a}</span>{@render field(hand, "deg", i, 1)}</div>
-        {/each}
-      </div>
-    </div>
+    {@render axisRow(hand, "Position", "m", "pos", 0.01)}
+    {@render axisRow(hand, "Rotation", "°", "deg", 1)}
+  </div>
+{/snippet}
+
+{#snippet gripCard(hand: Hand, name: string)}
+  <div class="card">
+    <h3>{name} hand</h3>
+    {@render axisRow(hand, "Position", "m", "gripPos", 0.01)}
+    {@render axisRow(hand, "Rotation", "°", "grip", 5)}
   </div>
 {/snippet}
 
@@ -96,7 +109,7 @@
   <div class="card head">
     <div class="hl">
       <h3>Space orientation</h3>
-      <p class="muted">Position the grip relative to the tracker. Changes apply live in VR.</p>
+      <p class="muted">Align the hands to the trackers, and place VRChat's menu. Applies live in VR.</p>
     </div>
     <div class="preset">
       <span class="plabel">Tracker</span>
@@ -104,9 +117,16 @@
     </div>
   </div>
 
+  <div class="section">Hand alignment</div>
   <div class="cols">
     {@render handCard("left", "Left")}
     {@render handCard("right", "Right")}
+  </div>
+
+  <div class="section">Grip / menu <em>— position &amp; rotation of VRChat's menu anchor</em></div>
+  <div class="cols">
+    {@render gripCard("left", "Left")}
+    {@render gripCard("right", "Right")}
   </div>
 
   <div class="card trackers">
@@ -166,6 +186,17 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
+  }
+  .section {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--on-surface-var);
+    margin: 4px 2px -4px;
+  }
+  .section em {
+    font-style: normal;
+    font-weight: 500;
+    color: var(--muted);
   }
   .group {
     margin-top: 16px;

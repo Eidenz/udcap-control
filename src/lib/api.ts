@@ -24,6 +24,8 @@ export interface HandView {
   offset_deg: number[]; // [x,y,z] degrees
   curl_min: number[]; // per finger
   curl_max: number[]; // per finger
+  grip_pos: number[]; // [x,y,z] meters — grip/menu position offset
+  grip_rot: number[]; // [x,y,z] degrees — grip/menu rotation
 }
 
 export interface ShmView {
@@ -70,6 +72,8 @@ export const setOffset = (hand: number, pos: number[], deg: number[]) =>
   invoke("set_offset", { hand, pos, deg });
 export const setCurlRange = (hand: number, finger: number, min: number, max: number) =>
   invoke("set_curl_range", { hand, finger, min, max });
+export const setGrip = (hand: number, pos: number[], deg: number[]) =>
+  invoke("set_grip", { hand, pos, deg });
 export const testVibration = (hand: number, strength: number, duration: number) =>
   invoke("test_vibration", { hand, strength, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");

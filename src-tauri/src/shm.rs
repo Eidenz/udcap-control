@@ -8,10 +8,10 @@ use std::sync::atomic::{fence, AtomicU32, Ordering};
 
 pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
-pub const SHM_VERSION: u32 = 5;
+pub const SHM_VERSION: u32 = 7;
 pub const HAND_COUNT: usize = 2;
 
-const MAX_BEND_RAD: f32 = 1.5;
+const MAX_BEND_RAD: f32 = 1.35;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -71,6 +71,8 @@ struct Hand {
     offset_rot_deg: [f32; 3],
     curl_min: [f32; 5],
     curl_max: [f32; 5],
+    grip_pos: [f32; 3],
+    grip_rot_deg: [f32; 3],
 }
 
 #[repr(C)]
@@ -114,6 +116,8 @@ pub struct HandView {
     pub offset_deg: [f32; 3],
     pub curl_min: [f32; 5],
     pub curl_max: [f32; 5],
+    pub grip_pos: [f32; 3],
+    pub grip_rot: [f32; 3],
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -216,6 +220,8 @@ impl ShmMap {
             offset_deg: h.offset_rot_deg,
             curl_min: h.curl_min,
             curl_max: h.curl_max,
+            grip_pos: h.grip_pos,
+            grip_rot: h.grip_rot_deg,
         }
     }
 
@@ -259,6 +265,15 @@ impl ShmMap {
         let h = unsafe { &mut (*self.ptr).hands[hand] };
         h.curl_min[finger] = min;
         h.curl_max[finger] = max;
+    }
+
+    pub fn set_grip(&self, hand: usize, pos: [f32; 3], deg: [f32; 3]) {
+        if hand >= HAND_COUNT {
+            return;
+        }
+        let h = unsafe { &mut (*self.ptr).hands[hand] };
+        h.grip_pos = pos;
+        h.grip_rot_deg = deg;
     }
 
     /// Mark the segment as having no live server (used after we kill our child,
