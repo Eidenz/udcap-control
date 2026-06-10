@@ -115,6 +115,25 @@ fn set_offset(state: State<AppState>, hand: usize, pos: [f32; 3], deg: [f32; 3])
 }
 
 #[tauri::command]
+fn set_curl_range(state: State<AppState>, hand: usize, finger: usize, min: f32, max: f32) {
+    if let Some(m) = state.shm.lock().unwrap().as_ref() {
+        m.set_curl_range(hand, finger, min, max);
+    }
+}
+
+#[tauri::command]
+fn test_vibration(state: State<AppState>, hand: usize, strength: i32, duration: f32) {
+    if let Some(m) = state.shm.lock().unwrap().as_ref() {
+        m.test_vibration(hand, strength, duration);
+    }
+}
+
+#[tauri::command]
+fn get_server_bin(state: State<AppState>) -> String {
+    state.server.lock().unwrap().bin.clone()
+}
+
+#[tauri::command]
 fn send_command(state: State<AppState>, code: u32) -> u32 {
     match state.shm.lock().unwrap().as_ref() {
         Some(m) => m.send_command(code, 0),
@@ -146,6 +165,9 @@ pub fn run() {
             server_stop,
             set_server_bin,
             set_offset,
+            set_curl_range,
+            test_vibration,
+            get_server_bin,
             send_command,
             udev_status,
             udev_install,

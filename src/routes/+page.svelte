@@ -4,10 +4,14 @@
   import { serverStart, serverStop } from "$lib/api";
   import StatusScreen from "$lib/screens/Status.svelte";
   import CalibrationScreen from "$lib/screens/Calibration.svelte";
+  import FingersScreen from "$lib/screens/Fingers.svelte";
   import SpaceScreen from "$lib/screens/Space.svelte";
+  import ControllerScreen from "$lib/screens/Controller.svelte";
+  import SettingsScreen from "$lib/screens/Settings.svelte";
   import WindowControls from "$lib/components/WindowControls.svelte";
 
-  let tab = $state<"status" | "calibration" | "space">("status");
+  type Tab = "status" | "controller" | "calibration" | "fingers" | "space" | "settings";
+  let tab = $state<Tab>("status");
   let busy = $state(false);
 
   onMount(startPolling);
@@ -30,8 +34,11 @@
 
   const nav = [
     { id: "status", label: "Status" },
+    { id: "controller", label: "Controls" },
     { id: "calibration", label: "Calibrate" },
+    { id: "fingers", label: "Fingers" },
     { id: "space", label: "Space" },
+    { id: "settings", label: "Settings" },
   ] as const;
 </script>
 
@@ -49,11 +56,32 @@
             <svg viewBox="0 0 24 24" width="24" height="24"
               ><path fill="currentColor" d="M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm8 0h8v-9h-8v9Zm0-16v5h8V4h-8Z" /></svg
             >
+          {:else if item.id === "controller"}
+            <svg viewBox="0 0 24 24" width="24" height="24"
+              ><path
+                fill="currentColor"
+                d="M21 6H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2M11 13H8v3H6v-3H3v-2h3V8h2v3h3v2m4.5 2a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m4-3a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"
+              /></svg
+            >
           {:else if item.id === "calibration"}
             <svg viewBox="0 0 24 24" width="24" height="24"
               ><path
                 fill="currentColor"
                 d="M7 11V6a1.5 1.5 0 0 1 3 0v4h1V4a1.5 1.5 0 0 1 3 0v6h1V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1.2a6 6 0 0 1-5-2.7l-2.3-3.4a1.4 1.4 0 0 1 2-1.9L7 11Z"
+              /></svg
+            >
+          {:else if item.id === "fingers"}
+            <svg viewBox="0 0 24 24" width="24" height="24"
+              ><path
+                fill="currentColor"
+                d="M3 17v2h6v-2H3M3 5v2h10V5H3m10 16v-2h8v-2h-8v-2h-2v6h2M7 9v2H3v2h4v2h2V9H7m14 4v-2H11v2h10m-6-4h2V7h4V5h-4V3h-2v6Z"
+              /></svg
+            >
+          {:else if item.id === "settings"}
+            <svg viewBox="0 0 24 24" width="24" height="24"
+              ><path
+                fill="currentColor"
+                d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z"
               /></svg
             >
           {:else}
@@ -105,8 +133,14 @@
     <section class="content">
       {#if tab === "status"}
         <StatusScreen onCalibrate={() => (tab = "calibration")} />
+      {:else if tab === "controller"}
+        <ControllerScreen />
       {:else if tab === "calibration"}
         <CalibrationScreen />
+      {:else if tab === "fingers"}
+        <FingersScreen />
+      {:else if tab === "settings"}
+        <SettingsScreen />
       {:else}
         <SpaceScreen />
       {/if}

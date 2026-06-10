@@ -69,6 +69,8 @@ struct Hand {
     tracker_serial: [u8; 32],
     offset_pos: [f32; 3],
     offset_rot_deg: [f32; 3],
+    curl_min: [f32; 5],
+    curl_max: [f32; 5],
 }
 
 #[repr(C)]
@@ -104,11 +106,14 @@ pub struct HandView {
     pub btn_power: bool,
     pub trigger: f32,
     pub grip: f32,
+    pub trackpad: f32,
     pub joy_x: f32,
     pub joy_y: f32,
     pub curl: [f32; 5], // thumb, index, middle, ring, little
     pub offset_pos: [f32; 3],
     pub offset_deg: [f32; 3],
+    pub curl_min: [f32; 5],
+    pub curl_max: [f32; 5],
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -197,6 +202,7 @@ impl ShmMap {
             btn_power: h.btn_power != 0,
             trigger: h.trigger,
             grip: h.grip,
+            trackpad: h.trackpad,
             joy_x: h.joy_x,
             joy_y: h.joy_y,
             curl: [
@@ -208,6 +214,8 @@ impl ShmMap {
             ],
             offset_pos: h.offset_pos,
             offset_deg: h.offset_rot_deg,
+            curl_min: h.curl_min,
+            curl_max: h.curl_max,
         }
     }
 
@@ -229,6 +237,28 @@ impl ShmMap {
         let h = unsafe { &mut (*self.ptr).hands[hand] };
         h.offset_pos = pos;
         h.offset_rot_deg = deg;
+    }
+
+    /// Fire a one-off haptic pulse on a hand (same channel the driver uses).
+    pub fn test_vibration(&self, hand: usize, strength: i32, duration_s: f32) {
+        if hand >= HAND_COUNT {
+            return;
+        }
+        let h = unsafe { &mut (*self.ptr).hands[hand] };
+        h.haptic_index = -1;
+        h.haptic_duration_s = duration_s;
+        h.haptic_strength = strength;
+        let seq = unsafe { &*(&h.haptic_seq as *const u32 as *const AtomicU32) };
+        seq.fetch_add(1, Ordering::Release);
+    }
+
+    pub fn set_curl_range(&self, hand: usize, finger: usize, min: f32, max: f32) {
+        if hand >= HAND_COUNT || finger >= 5 {
+            return;
+        }
+        let h = unsafe { &mut (*self.ptr).hands[hand] };
+        h.curl_min[finger] = min;
+        h.curl_max[finger] = max;
     }
 
     /// Mark the segment as having no live server (used after we kill our child,

@@ -1,0 +1,152 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { getServerBin, setServerBin, udevStatus, udevInstall, type UdevStatus } from "$lib/api";
+
+  let bin = $state("");
+  let saved = $state(false);
+  let udev = $state<UdevStatus | null>(null);
+  let installing = $state(false);
+
+  onMount(async () => {
+    try {
+      bin = await getServerBin();
+    } catch {
+      bin = "";
+    }
+    await refreshUdev();
+  });
+  async function refreshUdev() {
+    try {
+      udev = await udevStatus();
+    } catch {
+      udev = null;
+    }
+  }
+  async function saveBin() {
+    await setServerBin(bin);
+    saved = true;
+    setTimeout(() => (saved = false), 1500);
+  }
+  async function installUdev() {
+    installing = true;
+    try {
+      await udevInstall();
+      await refreshUdev();
+    } catch (_) {
+      /* cancelled */
+    } finally {
+      installing = false;
+    }
+  }
+</script>
+
+<div class="screen">
+  <div class="card">
+    <h3>Server</h3>
+    <p class="muted">
+      Leave blank to auto-detect (bundled with the app, next to the executable, or on PATH).
+      Override only if your <code>udcap-server</code> lives elsewhere.
+    </p>
+    <div class="row">
+      <input placeholder="auto-detect" bind:value={bin} />
+      <button class="btn tonal state-layer" onclick={saveBin}>{saved ? "Saved ✓" : "Save"}</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Device permissions</h3>
+    <p class="muted">
+      A udev rule lets the app reach the glove dongles without sudo. Installing asks for your
+      password once.
+    </p>
+    <div class="row between">
+      <span class="status">
+        <span class="dot" class:on={udev?.installed && udev?.up_to_date} class:warn={udev?.installed && !udev?.up_to_date}></span>
+        {#if !udev}
+          Checking…
+        {:else if udev.installed && udev.up_to_date}
+          Installed
+        {:else if udev.installed}
+          Out of date
+        {:else}
+          Not installed
+        {/if}
+      </span>
+      <button class="btn tonal state-layer" disabled={installing} onclick={installUdev}>
+        {installing ? "Installing…" : udev?.installed ? "Reinstall" : "Install"}
+      </button>
+    </div>
+  </div>
+
+  <div class="card about">
+    <h3>About</h3>
+    <div class="kv"><span>Application</span><b>UDCAP Control 0.1.0</b></div>
+    <div class="kv"><span>Shared-memory contract</span><b>v5</b></div>
+    <div class="kv"><span>Runtime</span><b>Monado · drv_udcap</b></div>
+    <p class="muted">
+      Hand tracking + Index-controller inputs for Udexreal (UDCAP) gloves on Linux. Pose comes from a
+      Lighthouse tracker mounted on each glove.
+    </p>
+  </div>
+</div>
+
+<style>
+  .screen {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 720px;
+  }
+  .muted {
+    color: var(--muted);
+    margin: 6px 0 0;
+    font-size: 13px;
+  }
+  code {
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 5px;
+    font-size: 12px;
+  }
+  .row {
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
+    align-items: center;
+  }
+  .row.between {
+    justify-content: space-between;
+  }
+  input {
+    flex: 1;
+    background: var(--surface-2);
+    border: 1px solid var(--outline-dim);
+    color: var(--on-surface);
+    border-radius: var(--radius-s);
+    height: 40px;
+    padding: 0 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+  }
+  input:focus {
+    border-color: var(--primary);
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--on-surface-var);
+    font-weight: 600;
+  }
+  .about .kv {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--outline-dim);
+    font-size: 14px;
+  }
+  .about .kv span {
+    color: var(--muted);
+  }
+</style>

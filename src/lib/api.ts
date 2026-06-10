@@ -16,11 +16,14 @@ export interface HandView {
   btn_power: boolean;
   trigger: number;
   grip: number;
+  trackpad: number;
   joy_x: number;
   joy_y: number;
   curl: number[]; // [thumb, index, middle, ring, little]
   offset_pos: number[]; // [x,y,z] meters
   offset_deg: number[]; // [x,y,z] degrees
+  curl_min: number[]; // per finger
+  curl_max: number[]; // per finger
 }
 
 export interface ShmView {
@@ -64,6 +67,11 @@ export const serverStop = () => invoke("server_stop");
 export const setServerBin = (path: string) => invoke("set_server_bin", { path });
 export const setOffset = (hand: number, pos: number[], deg: number[]) =>
   invoke("set_offset", { hand, pos, deg });
+export const setCurlRange = (hand: number, finger: number, min: number, max: number) =>
+  invoke("set_curl_range", { hand, finger, min, max });
+export const testVibration = (hand: number, strength: number, duration: number) =>
+  invoke("test_vibration", { hand, strength, duration });
+export const getServerBin = () => invoke<string>("get_server_bin");
 export const sendCommand = (code: number) => invoke<number>("send_command", { code });
 
 export interface UdevStatus {
