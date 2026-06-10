@@ -167,6 +167,11 @@ fn get_server_bin(state: State<AppState>) -> String {
 }
 
 #[tauri::command]
+fn shm_version() -> u32 {
+    shm::SHM_VERSION
+}
+
+#[tauri::command]
 fn send_command(state: State<AppState>, code: u32) -> u32 {
     match state.shm.lock().unwrap().as_ref() {
         Some(m) => m.send_command(code, 0),
@@ -203,6 +208,7 @@ pub fn run() {
             set_curl_gain,
             test_vibration,
             get_server_bin,
+            shm_version,
             send_command,
             udev_status,
             udev_install,

@@ -33,10 +33,20 @@ export function saveConfig() {
 
 // --- Space / grip alignment (built-in presets must mirror the server defaults) ---
 
-export const BUILTIN_TRACKER = {
-  left: { pos: [0, 0, 0], deg: [45, 85, 0] },
-  right: { pos: [0, 0, 0], deg: [45, -85, 0] },
+type Offset = { pos: number[]; deg: number[] };
+// Built-in hand-alignment profiles. Position stays 0 (our pose chain puts the
+// grip at the tracker — verified on hardware); rotation matches UDCAP's values.
+export const TRACKER_PRESETS: Record<string, { left: Offset; right: Offset }> = {
+  "Vive Tracker 3.0": {
+    left: { pos: [0, 0, 0], deg: [45, 85, 0] },
+    right: { pos: [0, 0, 0], deg: [45, -85, 0] },
+  },
+  Quest: {
+    left: { pos: [0, 0, 0], deg: [-35, 20, 0] },
+    right: { pos: [0, 0, 0], deg: [-35, -20, 0] },
+  },
 };
+export const BUILTIN_TRACKER = TRACKER_PRESETS["Vive Tracker 3.0"];
 export const BUILTIN_GRIP = {
   left: { pos: [0.06, -0.06, 0.01], rot: [70, -5, -55] },
   right: { pos: [-0.06, -0.06, 0.01], rot: [70, -5, 75] },

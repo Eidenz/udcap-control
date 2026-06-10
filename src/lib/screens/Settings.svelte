@@ -1,17 +1,23 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getServerBin, setServerBin, udevStatus, udevInstall, type UdevStatus } from "$lib/api";
+  import { getServerBin, setServerBin, udevStatus, udevInstall, shmVersion, type UdevStatus } from "$lib/api";
 
   let bin = $state("");
   let saved = $state(false);
   let udev = $state<UdevStatus | null>(null);
   let installing = $state(false);
+  let shmVer = $state(0);
 
   onMount(async () => {
     try {
       bin = await getServerBin();
     } catch {
       bin = "";
+    }
+    try {
+      shmVer = await shmVersion();
+    } catch {
+      shmVer = 0;
     }
     await refreshUdev();
   });
@@ -81,8 +87,9 @@
   <div class="card about">
     <h3>About</h3>
     <div class="kv"><span>Application</span><b>UDCAP Control 0.1.0</b></div>
-    <div class="kv"><span>Shared-memory contract</span><b>v5</b></div>
+    <div class="kv"><span>Shared-memory contract</span><b>{shmVer ? `v${shmVer}` : "—"}</b></div>
     <div class="kv"><span>Runtime</span><b>Monado · drv_udcap</b></div>
+    <div class="kv"><span>Author</span><b>Eidenz</b></div>
     <p class="muted">
       Hand tracking + Index-controller inputs for Udexreal (UDCAP) gloves on Linux. Pose comes from a
       Lighthouse tracker mounted on each glove.

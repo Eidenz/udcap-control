@@ -79,6 +79,7 @@ export const setCurlGain = (gain: number) => invoke("set_curl_gain", { gain });
 export const testVibration = (hand: number, strength: number, duration: number) =>
   invoke("test_vibration", { hand, strength, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");
+export const shmVersion = () => invoke<number>("shm_version");
 export const sendCommand = (code: number) => invoke<number>("send_command", { code });
 
 export interface UdevStatus {

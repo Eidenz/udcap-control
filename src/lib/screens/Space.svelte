@@ -4,7 +4,7 @@
     saveConfig,
     spaceConfig,
     gripConfig,
-    BUILTIN_TRACKER,
+    TRACKER_PRESETS,
     BUILTIN_GRIP,
     saveSpace,
     saveGrip,
@@ -52,8 +52,8 @@
 
   function selectTracker(name: string) {
     spaceConfig.preset = name;
-    if (name !== "Custom") {
-      spaceConfig.offsets = clone(BUILTIN_TRACKER);
+    if (name !== "Custom" && TRACKER_PRESETS[name]) {
+      spaceConfig.offsets = clone(TRACKER_PRESETS[name]);
       applyTrackerHand("left");
       applyTrackerHand("right");
     }
@@ -120,7 +120,7 @@
 
   <div class="section">
     <span>Hand alignment</span>
-    <Select bind:value={spaceConfig.preset} options={["Vive Tracker 3.0", "Custom"]} onchange={selectTracker} />
+    <Select bind:value={spaceConfig.preset} options={[...Object.keys(TRACKER_PRESETS), "Custom"]} onchange={selectTracker} />
   </div>
   <div class="cols">
     {@render handCard("left", "Left")}
