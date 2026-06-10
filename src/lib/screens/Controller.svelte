@@ -1,10 +1,22 @@
 <script lang="ts">
-  import { app } from "$lib/state.svelte";
-  import { testVibration, type HandView } from "$lib/api";
+  import { app, btnMap, saveBtnMap, DEFAULT_BTN_MAP } from "$lib/state.svelte";
+  import { testVibration, setBtnMap, BTN_OUTPUTS, BTN_SOURCES, type HandView } from "$lib/api";
+  import Select from "$lib/components/Select.svelte";
 
   const shm = $derived(app.status?.shm ?? null);
   const live = $derived(!!shm && shm.server_pid !== 0);
   const hands = $derived(shm?.hands ?? []);
+
+  function setSrc(output: number, name: string) {
+    btnMap.src[output] = Math.max(0, BTN_SOURCES.indexOf(name));
+    setBtnMap(btnMap.src).catch(() => {});
+    saveBtnMap();
+  }
+  function resetMap() {
+    btnMap.src = [...DEFAULT_BTN_MAP];
+    setBtnMap(btnMap.src).catch(() => {});
+    saveBtnMap();
+  }
 </script>
 
 {#snippet bar(label: string, v: number)}
@@ -63,6 +75,29 @@
     {@render pad(hands[0], "Left", 0)}
     {@render pad(hands[1], "Right", 1)}
   </div>
+
+  <div class="card mapcard">
+    <div class="mhead">
+      <div>
+        <h3>Button mapping</h3>
+        <p class="muted">Pick which glove input drives each controller button (both hands). Applies live.</p>
+      </div>
+      <button class="btn text state-layer" onclick={resetMap}>Reset</button>
+    </div>
+    <div class="maprows">
+      {#each BTN_OUTPUTS as out, o}
+        <div class="maprow">
+          <span class="ml">{out}</span>
+          <span class="arrow">←</span>
+          <Select
+            value={BTN_SOURCES[btnMap.src[o]] ?? "None"}
+            options={BTN_SOURCES}
+            onchange={(name) => setSrc(o, name)}
+          />
+        </div>
+      {/each}
+    </div>
+  </div>
 </div>
 
 <style>
@@ -75,6 +110,36 @@
   .banner p {
     margin: 0;
     color: var(--on-surface-var);
+  }
+  .mhead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .mhead .muted {
+    margin: 4px 0 0;
+    font-size: 13px;
+  }
+  .maprows {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 24px;
+  }
+  .maprow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ml {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--on-surface-var);
+  }
+  .arrow {
+    color: var(--muted);
   }
   .cols {
     display: grid;

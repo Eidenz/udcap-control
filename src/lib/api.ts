@@ -34,6 +34,7 @@ export interface ShmView {
   cmd_ack: number;
   cmd_seq: number;
   curl_gain: number;
+  btn_src: number[];
   hands: HandView[];
 }
 
@@ -77,6 +78,11 @@ export const setCurlRange = (hand: number, finger: number, min: number, max: num
 export const setGrip = (hand: number, pos: number[], deg: number[]) =>
   invoke("set_grip", { hand, pos, deg });
 export const setCurlGain = (gain: number) => invoke("set_curl_gain", { gain });
+export const setBtnMap = (map: number[]) => invoke("set_btn_map", { map });
+
+// Button remap: btn_src[output] = source. Outputs: [A, B, System, Stick].
+export const BTN_OUTPUTS = ["A button", "B button", "System / Menu", "Stick click"];
+export const BTN_SOURCES = ["None", "A", "B", "A + B", "Stick"]; // index = udcap_btn_src
 export const testVibration = (hand: number, strength: number, duration: number) =>
   invoke("test_vibration", { hand, strength, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");

@@ -1,4 +1,4 @@
-import { poll, setServerBin, setOffset, setGrip, setCurlGain, type Status } from "./api";
+import { poll, setServerBin, setOffset, setGrip, setCurlGain, setBtnMap, type Status } from "./api";
 
 const ls = typeof localStorage !== "undefined" ? localStorage : null;
 const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));
@@ -59,6 +59,20 @@ export const spaceConfig = $state(
 );
 export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", values: clone(BUILTIN_GRIP) }));
 export const curl = $state({ gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)) });
+
+// Button map: src[output] = source. Default [A, B, A+B(menu), Stick].
+export const DEFAULT_BTN_MAP = [1, 2, 3, 4];
+export const btnMap = $state<{ src: number[] }>({
+  src: (() => {
+    try {
+      const a = JSON.parse(ls?.getItem("udcap.btnmap") ?? "null");
+      return Array.isArray(a) && a.length === 4 ? a : [...DEFAULT_BTN_MAP];
+    } catch {
+      return [...DEFAULT_BTN_MAP];
+    }
+  })(),
+});
+export const saveBtnMap = () => ls?.setItem("udcap.btnmap", JSON.stringify(btnMap.src));
 
 export const saveSpace = () => ls?.setItem("udcap.space", JSON.stringify(spaceConfig));
 export const saveGrip = () => ls?.setItem("udcap.grip", JSON.stringify(gripConfig));
@@ -143,6 +157,7 @@ export function applySavedToShm() {
     setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
   }
   setCurlGain(curl.gain).catch(() => {});
+  setBtnMap(btnMap.src).catch(() => {});
 }
 
 let timer: ReturnType<typeof setInterval> | undefined;
