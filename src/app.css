@@ -1,0 +1,173 @@
+/* Material You (MD3)-inspired dark design tokens + base styles. */
+:root {
+  /* tonal surfaces */
+  --bg: #121116;
+  --surface: #1a181e;
+  --surface-1: #211f26;
+  --surface-2: #28252e;
+  --surface-3: #302d37;
+  --surface-hi: #383440;
+  --outline: #494552;
+  --outline-dim: #322f39;
+
+  /* text */
+  --on-surface: #e7e1ec;
+  --on-surface-var: #cbc4d2;
+  --muted: #948fa0;
+
+  /* accent (iris) */
+  --primary: #c3c0ff;
+  --on-primary: #2a2870;
+  --primary-container: #3f3d8f;
+  --on-primary-container: #e3dfff;
+
+  /* states */
+  --success: #84e0a4;
+  --warn: #ffd479;
+  --error: #ffb4ab;
+  --track: #3a3742;
+
+  --radius-xl: 28px;
+  --radius-l: 22px;
+  --radius-m: 16px;
+  --radius-s: 12px;
+  --radius-pill: 999px;
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.4);
+
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--on-surface);
+  font-family: var(--font);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+/* Material-ish state layer helper */
+.state-layer {
+  position: relative;
+  overflow: hidden;
+}
+.state-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+  pointer-events: none;
+}
+.state-layer:hover::after {
+  opacity: 0.08;
+}
+.state-layer:active::after {
+  opacity: 0.14;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.15s var(--ease), opacity 0.15s var(--ease);
+}
+.btn.filled {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.btn.tonal {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+.btn.outline {
+  border: 1px solid var(--outline);
+  color: var(--primary);
+}
+.btn.text {
+  color: var(--primary);
+  padding: 0 12px;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--on-surface-var);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.card {
+  background: var(--surface-1);
+  border-radius: var(--radius-l);
+  padding: 20px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+.dot.on {
+  background: var(--success);
+  box-shadow: 0 0 8px rgba(132, 224, 164, 0.6);
+}
+.dot.warn {
+  background: var(--warn);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 8px;
+}
