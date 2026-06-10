@@ -1,4 +1,4 @@
-import { poll, setServerBin, setOffset, setGrip, setCurlGain, setBtnMap, type Status } from "./api";
+import { poll, setServerBin, setOffset, setGrip, setCurlGain, setBtnMap, setAnalog, type Status } from "./api";
 
 const ls = typeof localStorage !== "undefined" ? localStorage : null;
 const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));
@@ -60,19 +60,41 @@ export const spaceConfig = $state(
 export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", values: clone(BUILTIN_GRIP) }));
 export const curl = $state({ gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)) });
 
-// Button map: src[output] = source. Default [A, B, A+B(menu), Stick].
-export const DEFAULT_BTN_MAP = [1, 2, 3, 4];
-export const btnMap = $state<{ src: number[] }>({
-  src: (() => {
-    try {
-      const a = JSON.parse(ls?.getItem("udcap.btnmap") ?? "null");
-      return Array.isArray(a) && a.length === 4 ? a : [...DEFAULT_BTN_MAP];
-    } catch {
-      return [...DEFAULT_BTN_MAP];
-    }
-  })(),
+// Per-hand input mapping (button map + analog trigger/grip config).
+export type HandIO = {
+  btn: number[]; // [A,B,System,Stick,Trigger,Grip] = source
+  tFinger: number;
+  gFinger: number;
+  tMin: number;
+  tMax: number;
+  gMin: number;
+  gMax: number;
+};
+export const defaultHandIo = (): HandIO => ({
+  btn: [1, 2, 3, 4, 0, 0],
+  tFinger: 1,
+  gFinger: 5,
+  tMin: 0.15,
+  tMax: 0.85,
+  gMin: 0.15,
+  gMax: 0.85,
 });
-export const saveBtnMap = () => ls?.setItem("udcap.btnmap", JSON.stringify(btnMap.src));
+function loadIo() {
+  try {
+    const o = JSON.parse(ls?.getItem("udcap.io") ?? "null");
+    if (o && Array.isArray(o.hands) && o.hands.length === 2) return o;
+  } catch {
+    /* fall through */
+  }
+  return { linked: true, hands: [defaultHandIo(), defaultHandIo()] };
+}
+export const io = $state<{ linked: boolean; hands: HandIO[] }>(loadIo());
+export const saveIo = () => ls?.setItem("udcap.io", JSON.stringify(io));
+export function applyHandIo(h: number) {
+  const x = io.hands[h];
+  setBtnMap(h, x.btn).catch(() => {});
+  setAnalog(h, x.tFinger, x.gFinger, x.tMin, x.tMax, x.gMin, x.gMax).catch(() => {});
+}
 
 export const saveSpace = () => ls?.setItem("udcap.space", JSON.stringify(spaceConfig));
 export const saveGrip = () => ls?.setItem("udcap.grip", JSON.stringify(gripConfig));
@@ -157,7 +179,8 @@ export function applySavedToShm() {
     setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
   }
   setCurlGain(curl.gain).catch(() => {});
-  setBtnMap(btnMap.src).catch(() => {});
+  applyHandIo(0);
+  applyHandIo(1);
 }
 
 let timer: ReturnType<typeof setInterval> | undefined;

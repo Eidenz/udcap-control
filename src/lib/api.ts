@@ -26,6 +26,13 @@ export interface HandView {
   curl_max: number[]; // per finger
   grip_pos: number[]; // [x,y,z] meters — grip/menu position offset
   grip_rot: number[]; // [x,y,z] degrees — grip/menu rotation
+  btn_src: number[]; // per output [A,B,System,Stick,Trigger,Grip] = source
+  trigger_finger: number;
+  grip_finger: number;
+  trigger_min: number;
+  trigger_max: number;
+  grip_min: number;
+  grip_max: number;
 }
 
 export interface ShmView {
@@ -34,7 +41,6 @@ export interface ShmView {
   cmd_ack: number;
   cmd_seq: number;
   curl_gain: number;
-  btn_src: number[];
   hands: HandView[];
 }
 
@@ -78,11 +84,22 @@ export const setCurlRange = (hand: number, finger: number, min: number, max: num
 export const setGrip = (hand: number, pos: number[], deg: number[]) =>
   invoke("set_grip", { hand, pos, deg });
 export const setCurlGain = (gain: number) => invoke("set_curl_gain", { gain });
-export const setBtnMap = (map: number[]) => invoke("set_btn_map", { map });
+export const setBtnMap = (hand: number, map: number[]) => invoke("set_btn_map", { hand, map });
+export const setAnalog = (
+  hand: number,
+  triggerFinger: number,
+  gripFinger: number,
+  triggerMin: number,
+  triggerMax: number,
+  gripMin: number,
+  gripMax: number,
+) => invoke("set_analog", { hand, triggerFinger, gripFinger, triggerMin, triggerMax, gripMin, gripMax });
 
-// Button remap: btn_src[output] = source. Outputs: [A, B, System, Stick].
-export const BTN_OUTPUTS = ["A button", "B button", "System / Menu", "Stick click"];
+// Button remap: btn_src[output] = source.
+export const BTN_OUTPUTS = ["A button", "B button", "System / Menu", "Stick click", "Trigger", "Grip"];
 export const BTN_SOURCES = ["None", "A", "B", "A + B", "Stick"]; // index = udcap_btn_src
+// Finger source for analog trigger/grip (index = udcap finger; 5 = grip avg).
+export const FINGER_SEL = ["Thumb", "Index", "Middle", "Ring", "Pinky", "Grip (M+R+P)"];
 export const testVibration = (hand: number, strength: number, duration: number) =>
   invoke("test_vibration", { hand, strength, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");

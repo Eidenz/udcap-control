@@ -155,9 +155,26 @@ fn set_curl_gain(state: State<AppState>, gain: f32) {
 }
 
 #[tauri::command]
-fn set_btn_map(state: State<AppState>, map: [u8; 4]) {
+fn set_btn_map(state: State<AppState>, hand: usize, map: [u8; 6]) {
     if let Some(m) = state.shm.lock().unwrap().as_ref() {
-        m.set_btn_map(map);
+        m.set_btn_map(hand, map);
+    }
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn set_analog(
+    state: State<AppState>,
+    hand: usize,
+    trigger_finger: u8,
+    grip_finger: u8,
+    trigger_min: f32,
+    trigger_max: f32,
+    grip_min: f32,
+    grip_max: f32,
+) {
+    if let Some(m) = state.shm.lock().unwrap().as_ref() {
+        m.set_analog(hand, trigger_finger, grip_finger, trigger_min, trigger_max, grip_min, grip_max);
     }
 }
 
@@ -214,6 +231,7 @@ pub fn run() {
             set_grip,
             set_curl_gain,
             set_btn_map,
+            set_analog,
             test_vibration,
             get_server_bin,
             shm_version,

@@ -8,7 +8,7 @@ use std::sync::atomic::{fence, AtomicU32, Ordering};
 
 pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
-pub const SHM_VERSION: u32 = 9;
+pub const SHM_VERSION: u32 = 10;
 pub const HAND_COUNT: usize = 2;
 
 const MAX_BEND_RAD: f32 = 1.35;
@@ -73,6 +73,13 @@ struct Hand {
     curl_max: [f32; 5],
     grip_pos: [f32; 3],
     grip_rot_deg: [f32; 3],
+    btn_src: [u8; 6],
+    trigger_finger: u8,
+    grip_finger: u8,
+    trigger_min: f32,
+    trigger_max: f32,
+    grip_min: f32,
+    grip_max: f32,
 }
 
 #[repr(C)]
@@ -88,8 +95,6 @@ struct Shm {
     cmd_ack: u32,
     calib_state: u32,
     curl_gain: f32,
-    btn_src: [u8; 4],
-    _pad3: [u8; 4],
 }
 
 /* ---- Serializable views sent to the frontend ---- */
@@ -121,6 +126,13 @@ pub struct HandView {
     pub curl_max: [f32; 5],
     pub grip_pos: [f32; 3],
     pub grip_rot: [f32; 3],
+    pub btn_src: [u8; 6],
+    pub trigger_finger: u8,
+    pub grip_finger: u8,
+    pub trigger_min: f32,
+    pub trigger_max: f32,
+    pub grip_min: f32,
+    pub grip_max: f32,
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -130,7 +142,6 @@ pub struct ShmView {
     pub cmd_ack: u32,
     pub cmd_seq: u32,
     pub curl_gain: f32,
-    pub btn_src: [u8; 4],
     pub hands: Vec<HandView>,
 }
 
@@ -227,6 +238,13 @@ impl ShmMap {
             curl_max: h.curl_max,
             grip_pos: h.grip_pos,
             grip_rot: h.grip_rot_deg,
+            btn_src: h.btn_src,
+            trigger_finger: h.trigger_finger,
+            grip_finger: h.grip_finger,
+            trigger_min: h.trigger_min,
+            trigger_max: h.trigger_max,
+            grip_min: h.grip_min,
+            grip_max: h.grip_max,
         }
     }
 
@@ -238,7 +256,6 @@ impl ShmMap {
             cmd_ack: g.cmd_ack,
             cmd_seq: g.cmd_seq,
             curl_gain: g.curl_gain,
-            btn_src: g.btn_src,
             hands: (0..HAND_COUNT).map(|i| self.read_hand(i)).collect(),
         }
     }
@@ -280,10 +297,27 @@ impl ShmMap {
         }
     }
 
-    pub fn set_btn_map(&self, map: [u8; 4]) {
-        unsafe {
-            (*self.ptr).btn_src = map;
+    pub fn set_btn_map(&self, hand: usize, map: [u8; 6]) {
+        if hand >= HAND_COUNT {
+            return;
         }
+        unsafe {
+            (*self.ptr).hands[hand].btn_src = map;
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_analog(&self, hand: usize, tf: u8, gf: u8, tmin: f32, tmax: f32, gmin: f32, gmax: f32) {
+        if hand >= HAND_COUNT {
+            return;
+        }
+        let h = unsafe { &mut (*self.ptr).hands[hand] };
+        h.trigger_finger = tf;
+        h.grip_finger = gf;
+        h.trigger_min = tmin;
+        h.trigger_max = tmax;
+        h.grip_min = gmin;
+        h.grip_max = gmax;
     }
 
     pub fn set_grip(&self, hand: usize, pos: [f32; 3], deg: [f32; 3]) {
