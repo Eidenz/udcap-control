@@ -56,7 +56,7 @@
     {:else}
       <div class="stats">
         <div class="stat">
-          <span class="sval">{h.battery}%</span><span class="slabel">Battery</span>
+          <span class="sval">{h.battery ? `${h.battery * 20}%` : "—"}</span><span class="slabel">Battery</span>
         </div>
         <div class="stat">
           <span class="sval">{Math.round(h.fps)}</span><span class="slabel">FPS</span>

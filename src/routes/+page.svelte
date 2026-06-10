@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { app, config, startPolling, stopPolling } from "$lib/state.svelte";
+  import { app, config, startPolling, stopPolling, unlockAudio } from "$lib/state.svelte";
   import { serverStart, serverStop } from "$lib/api";
   import StatusScreen from "$lib/screens/Status.svelte";
   import CalibrationScreen from "$lib/screens/Calibration.svelte";
@@ -14,7 +14,12 @@
   let tab = $state<Tab>("status");
   let busy = $state(false);
 
-  onMount(startPolling);
+  onMount(() => {
+    startPolling();
+    // Unlock audio on the first interaction (webview autoplay policy).
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+  });
   onDestroy(stopPolling);
 
   const shm = $derived(app.status?.shm ?? null);

@@ -79,13 +79,56 @@ const CALIB_SOUNDS: Record<number, string> = {
   4: "captured",
   5: "done",
 };
+
+// Use the Web Audio API rather than <audio>: cues fire from a timer (not a click),
+// and the packaged webview blocks timer-triggered <audio>. An AudioContext, once
+// resumed by any user gesture (unlockAudio), plays buffers programmatically.
+let actx: AudioContext | null = null;
+const audioBuffers = new Map<string, AudioBuffer | null>();
+function audioCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (!actx) {
+    try {
+      actx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } catch {
+      actx = null;
+    }
+  }
+  return actx;
+}
+async function loadSound(name: string): Promise<AudioBuffer | null> {
+  if (audioBuffers.has(name)) return audioBuffers.get(name) ?? null;
+  audioBuffers.set(name, null);
+  const c = audioCtx();
+  if (!c) return null;
+  try {
+    const res = await fetch(`/sounds/${name}.mp3`);
+    if (!res.ok) return null;
+    const buf = await c.decodeAudioData(await res.arrayBuffer());
+    audioBuffers.set(name, buf);
+    return buf;
+  } catch {
+    return null;
+  }
+}
+export function unlockAudio() {
+  const c = audioCtx();
+  if (!c) return;
+  if (c.state === "suspended") c.resume().catch(() => {});
+  Object.values(CALIB_SOUNDS).forEach((n) => loadSound(n)); // preload
+}
 function playCalib(name: string) {
   if (!calibSound.on) return;
-  try {
-    new Audio(`/sounds/${name}.mp3`).play().catch(() => {});
-  } catch {
-    /* missing file / no audio — ignore */
-  }
+  const c = audioCtx();
+  if (!c) return;
+  if (c.state === "suspended") c.resume().catch(() => {});
+  loadSound(name).then((buf) => {
+    if (!buf || !actx) return;
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    src.connect(actx.destination);
+    src.start();
+  });
 }
 
 // Push any *custom* saved alignment to the shm. Built-in modes are left alone:
