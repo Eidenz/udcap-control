@@ -19,23 +19,34 @@ struct Status {
     server_running: bool,
     /// Live shared-memory view (None if no server/shm is available).
     shm: Option<ShmView>,
+    /// Why the shm couldn't be opened (e.g. version mismatch), if applicable.
+    shm_error: Option<String>,
 }
 
-fn ensure_shm(state: &AppState) {
+fn ensure_shm(state: &AppState) -> Option<String> {
     let mut guard = state.shm.lock().unwrap();
     if guard.is_none() {
-        if let Ok(m) = ShmMap::open() {
-            *guard = Some(m);
-        }
+        return match ShmMap::open() {
+            Ok(m) => {
+                *guard = Some(m);
+                None
+            }
+            Err(e) => Some(e),
+        };
     }
+    None
 }
 
 #[tauri::command]
 fn poll(state: State<AppState>) -> Status {
     let server_running = state.server.lock().unwrap().running();
-    ensure_shm(&state);
+    let shm_error = ensure_shm(&state);
     let shm = state.shm.lock().unwrap().as_ref().map(|m| m.view());
-    Status { server_running, shm }
+    Status {
+        server_running,
+        shm,
+        shm_error,
+    }
 }
 
 // Find the udcap-server binary without any hard-coded paths: user override ->
@@ -75,6 +86,14 @@ fn server_start(
     tracker_left: String,
     tracker_right: String,
 ) -> Result<(), String> {
+    // On a fresh start, clear any stale segment (e.g. from an older server
+    // version) so the new server creates a clean one, and drop our old mapping
+    // so we re-open the fresh inode.
+    if !state.server.lock().unwrap().running() {
+        let _ = std::fs::remove_file(shm::SHM_PATH);
+        *state.shm.lock().unwrap() = None;
+    }
+
     let bin = {
         let s = state.server.lock().unwrap();
         resolve_server_bin(&app, &s.bin)

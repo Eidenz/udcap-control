@@ -7,31 +7,46 @@
   const hands = $derived(shm?.hands ?? []);
   const linked = $derived(hands.filter((h) => h.present && h.link === 3).length);
 
-  // 0 intro · 1 fist · 2 together · 3 spread · 4 done
-  let step = $state(0);
-
   const poses = [
-    { emoji: "✊", title: "Lightly make a fist", hint: "Curl all fingers loosely.", cmd: CMD.CALIB_FIST },
-    { emoji: "🤚", title: "Close five fingers together", hint: "Flat hand, fingers straight and touching.", cmd: CMD.CALIB_TOGETHER },
-    { emoji: "🖐️", title: "Spread out five fingers", hint: "Flat hand, fingers spread wide apart.", cmd: CMD.CALIB_SPREAD },
+    { emoji: "✊", title: "Make a fist", hint: "Curl all fingers loosely.", cmd: CMD.CALIB_FIST },
+    { emoji: "🤚", title: "Fingers together", hint: "Flat hand, fingers straight and touching.", cmd: CMD.CALIB_TOGETHER },
+    { emoji: "🖐️", title: "Spread fingers", hint: "Flat hand, fingers spread wide apart.", cmd: CMD.CALIB_SPREAD },
   ];
 
-  async function start() {
+  const HOLD = 4; // seconds to hold each pose before capture
+
+  let phase = $state<"intro" | "running" | "done">("intro");
+  let poseIndex = $state(0);
+  let countdown = $state(0); // seconds remaining; 0 = capturing
+  let cancelled = false;
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  async function run() {
+    cancelled = false;
+    phase = "running";
     await sendCommand(CMD.CALIB_START);
-    step = 1;
-  }
-  async function capture() {
-    const pose = poses[step - 1];
-    await sendCommand(pose.cmd);
-    if (step === 3) {
-      await sendCommand(CMD.CALIB_COMPLETE);
-      step = 4;
-    } else {
-      step += 1;
+    for (let i = 0; i < poses.length; i++) {
+      poseIndex = i;
+      for (let s = HOLD; s > 0; s--) {
+        if (cancelled) return;
+        countdown = s;
+        await sleep(1000);
+      }
+      if (cancelled) return;
+      countdown = 0; // "captured" flash
+      await sendCommand(poses[i].cmd);
+      await sleep(500);
     }
+    if (cancelled) return;
+    await sendCommand(CMD.CALIB_COMPLETE);
+    phase = "done";
   }
-  function restart() {
-    step = 0;
+
+  function cancel() {
+    cancelled = true;
+    sendCommand(CMD.CALIB_CANCEL);
+    phase = "intro";
   }
 </script>
 
@@ -43,27 +58,34 @@
         <h2>Connect your gloves first</h2>
         <p class="muted">Start the server and power on both gloves (linked, not pairing).</p>
       </div>
-    {:else if step === 0}
+    {:else if phase === "intro"}
       <div class="center">
         <h2>Calibrate both hands</h2>
-        <p class="muted">Put the gloves on. We'll capture three quick poses on each hand.</p>
+        <p class="muted">
+          Put the gloves on. After you press start, follow the on-screen poses — each is captured
+          automatically after a short countdown, so keep both hands free.
+        </p>
         <div class="poserow">
           {#each poses as p}
             <div class="posecard"><span class="pemoji">{p.emoji}</span><span>{p.title}</span></div>
           {/each}
         </div>
-        <button class="btn filled state-layer" onclick={start}>Start calibration</button>
+        <button class="btn filled state-layer" onclick={run}>Start calibration</button>
         {#if linked === 1}<p class="warn">Only one glove is linked — the other won't be calibrated.</p>{/if}
       </div>
-    {:else if step >= 1 && step <= 3}
-      {@const pose = poses[step - 1]}
+    {:else if phase === "running"}
+      {@const pose = poses[poseIndex]}
       <div class="center">
         <div class="steps">
-          {#each [1, 2, 3] as s}<span class="sdot" class:done={step > s} class:active={step === s}></span>{/each}
+          {#each poses as _, s}<span class="sdot" class:done={poseIndex > s} class:active={poseIndex === s}></span>{/each}
         </div>
         <div class="big">{pose.emoji}</div>
         <h2>{pose.title}</h2>
-        <p class="muted">{pose.hint}  Hold the pose, then capture.</p>
+        <p class="muted">{pose.hint}</p>
+
+        <div class="counter" class:capturing={countdown === 0}>
+          {#if countdown > 0}{countdown}{:else}Captured ✓{/if}
+        </div>
 
         <div class="preview">
           {#each hands as h, hi}
@@ -78,16 +100,14 @@
           {/each}
         </div>
 
-        <button class="btn filled state-layer" onclick={capture}>
-          {step === 3 ? "Capture & finish" : "Capture"}
-        </button>
+        <button class="btn text state-layer" onclick={cancel}>Cancel</button>
       </div>
     {:else}
       <div class="center">
         <div class="big">✅</div>
         <h2>Calibration complete</h2>
         <p class="muted">Finger tracking should now match your hands.</p>
-        <button class="btn tonal state-layer" onclick={restart}>Calibrate again</button>
+        <button class="btn tonal state-layer" onclick={() => (phase = "intro")}>Calibrate again</button>
       </div>
     {/if}
   </div>
@@ -115,7 +135,7 @@
   .muted {
     color: var(--muted);
     margin: 0;
-    max-width: 420px;
+    max-width: 440px;
   }
   .warn {
     color: var(--warn);
@@ -158,6 +178,23 @@
   .sdot.done {
     background: var(--success);
   }
+  .counter {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 40px;
+    font-weight: 800;
+    color: var(--primary);
+    background: var(--primary-container);
+    font-variant-numeric: tabular-nums;
+  }
+  .counter.capturing {
+    font-size: 20px;
+    color: var(--success);
+    background: rgba(132, 224, 164, 0.16);
+  }
   .preview {
     display: flex;
     gap: 24px;
@@ -175,7 +212,7 @@
   }
   .pbar {
     width: 12px;
-    height: 60px;
+    height: 56px;
     background: var(--track);
     border-radius: var(--radius-pill);
     display: flex;

@@ -37,6 +37,7 @@ export interface ShmView {
 export interface Status {
   server_running: boolean;
   shm: ShmView | null;
+  shm_error: string | null;
 }
 
 export const CMD = {

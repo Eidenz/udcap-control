@@ -8,7 +8,7 @@ use std::sync::atomic::{fence, AtomicU32, Ordering};
 
 pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
-pub const SHM_VERSION: u32 = 4;
+pub const SHM_VERSION: u32 = 5;
 pub const HAND_COUNT: usize = 2;
 
 const MAX_BEND_RAD: f32 = 1.5;

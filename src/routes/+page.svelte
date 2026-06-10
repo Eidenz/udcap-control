@@ -19,7 +19,8 @@
 
   const shm = $derived(app.status?.shm ?? null);
   const running = $derived(app.status?.server_running ?? false);
-  const live = $derived(!!shm && shm.server_pid !== 0);
+  // "Server up" = our process is alive, or an externally-started server is publishing.
+  const live = $derived(running || (!!shm && shm.server_pid !== 0));
   const linked = $derived(shm ? shm.hands.filter((h) => h.present && h.link === 3).length : 0);
 
   async function toggleServer() {

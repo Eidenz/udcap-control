@@ -30,7 +30,9 @@
   }
 
   const shm = $derived(app.status?.shm ?? null);
-  const live = $derived(!!shm && shm.server_pid !== 0);
+  const running = $derived(app.status?.server_running ?? false);
+  const live = $derived(running || (!!shm && shm.server_pid !== 0));
+  const shmError = $derived(app.status?.shm_error ?? null);
   const hands = $derived(shm?.hands ?? []);
   const ready = $derived(hands.length === 2 && hands.every((h) => h.present && h.calibrated));
 
@@ -112,6 +114,10 @@
     <div class="card banner">
       <p>The server isn't running. Press <b>Start server</b> (top right) to connect to your gloves.</p>
     </div>
+  {:else if shmError}
+    <div class="card banner err">
+      <p>Server is running but the shared memory can't be read: <code>{shmError}</code></p>
+    </div>
   {/if}
 
   <div class="gloves">
@@ -142,6 +148,16 @@
   .banner p {
     margin: 0;
     color: var(--on-surface-var);
+  }
+  .banner.err {
+    border: 1px solid var(--error);
+  }
+  .banner.err code {
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 5px;
+    color: var(--error);
+    font-size: 12px;
   }
   .setup {
     display: flex;
