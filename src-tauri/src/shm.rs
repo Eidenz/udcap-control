@@ -161,6 +161,7 @@ fn curl(q: Quat) -> f32 {
     (2.0 * w.acos() / MAX_BEND_RAD).clamp(0.0, 1.0)
 }
 
+
 pub struct ShmMap {
     _mmap: MmapMut,
     ptr: *mut Shm,

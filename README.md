@@ -17,20 +17,9 @@ pnpm install
 pnpm tauri dev
 ```
 
-Press **Start server** in the app to launch/supervise `udcap-server`. The binary
-is resolved with no hard-coded paths: a Settings override → bundled with the app
-→ next to the executable → `PATH`. Set your tracker serials in the **Space** tab
-so pose attaches to the right Lighthouse tracker.
-
-Without gloves/hardware the app still runs (shows "Server offline" / empty cards) —
-useful for UI work.
-
-> First run also shows a one-click **device permissions** installer (a udev rule
-> for the CH340 dongles), so a fresh setup needs no terminal.
-
 ## Monado & SteamVR
 
-The same backend (`udcap-server` + the shared memory) drives both runtimes — only
+The same backend (`udcap-server` + the shared memory) drives both runtimes, only
 the *consumer* differs. Pick one with the **Runtime mode** toggle on the dashboard;
 it swaps the Space-tab alignment offsets to that runtime's set (their pose
 conventions differ, so they tune separately).

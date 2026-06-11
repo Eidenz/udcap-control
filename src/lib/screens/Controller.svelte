@@ -195,11 +195,8 @@
   </div>
 
   <div class="card">
-    <h3>Trigger, grip &amp; stick</h3>
-    <p class="muted">
-      Which finger drives each analog axis (with its curl range), the thumbstick deadzone, and how much
-      thumb movement counts as a trackpad touch.
-    </p>
+    <h3>Trigger &amp; grip</h3>
+    <p class="muted">Which finger drives each analog axis, and the curl range that maps to 0–100%.</p>
     <div class="grid" style="grid-template-columns: repeat({cols.length}, 1fr)">
       {#each cols as hand}
         <div class="col">
@@ -226,33 +223,47 @@
               <span class="mm">max{@render numField(hand, "gMax", io.hands[hand].gMax)}</span>
             </div>
           </div>
-          <div class="analog">
-            <div class="arow">
-              <span class="ml">Stick DZ</span>
-              <input
-                class="trange"
-                type="range"
-                min="0"
-                max="0.5"
-                step="0.01"
-                value={io.hands[hand].deadzone}
-                oninput={(e) => editIoNum(hand, "deadzone", parseFloat(e.currentTarget.value))}
-              />
-              <span class="mm">{Math.round(io.hands[hand].deadzone * 100)}%</span>
+        </div>
+      {/each}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Thumbstick &amp; trackpad</h3>
+    <p class="muted">Fine-tune the stick and the touch trackpad.</p>
+    <div class="grid" style="grid-template-columns: repeat({cols.length}, 1fr)">
+      {#each cols as hand}
+        <div class="col">
+          {#if !io.linked}<div class="colh">{colName(hand)}</div>{/if}
+          <div class="opt">
+            <div class="opthead">
+              <span class="optlabel">Thumbstick deadzone</span>
+              <span class="optval">{Math.round(io.hands[hand].deadzone * 100)}%</span>
             </div>
-            <div class="arow">
-              <span class="ml">Trackpad</span>
-              <input
-                class="trange"
-                type="range"
-                min="0"
-                max="1"
-                step="0.02"
-                value={io.hands[hand].trackpad}
-                oninput={(e) => editIoNum(hand, "trackpad", parseFloat(e.currentTarget.value))}
-              />
-              <span class="mm">{Math.round(io.hands[hand].trackpad * 100)}%</span>
+            <input
+              type="range"
+              min="0"
+              max="0.5"
+              step="0.01"
+              value={io.hands[hand].deadzone}
+              oninput={(e) => editIoNum(hand, "deadzone", parseFloat(e.currentTarget.value))}
+            />
+            <p class="opthint">Ignore small stick movement near the center, so it doesn't drift on its own.</p>
+          </div>
+          <div class="opt">
+            <div class="opthead">
+              <span class="optlabel">Trackpad touch sensitivity</span>
+              <span class="optval">{Math.round(io.hands[hand].trackpad * 100)}%</span>
             </div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.02"
+              value={io.hands[hand].trackpad}
+              oninput={(e) => editIoNum(hand, "trackpad", parseFloat(e.currentTarget.value))}
+            />
+            <p class="opthint">How much you move your thumb on the trackpad before it counts as a resting finger.</p>
           </div>
         </div>
       {/each}
@@ -510,9 +521,32 @@
     width: 56px;
     flex: none;
   }
-  .trange {
-    flex: 1;
-    min-width: 90px;
+  .opt {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .opthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .optlabel {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--on-surface);
+  }
+  .optval {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .opthint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
   }
   .mm {
     display: flex;
