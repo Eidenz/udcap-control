@@ -31,43 +31,70 @@
   function reset(hand: number) {
     for (let f = 0; f < 5; f++) change(hand, f, 0, 1);
   }
-  // Capture the held pose: set each present finger's 0 (open) or full (fist) from
-  // where it actually reads, so anatomy-limited fingers (ring, thumb) map cleanly.
-  function captureOpen() {
-    for (let h = 0; h < 2; h++) {
-      if (!hands[h]?.present) continue;
-      for (let f = 0; f < 5; f++) {
-        const mn = Math.max(0, Math.min(hands[h].curl[f] ?? 0, curlRanges[h][f][1] - 0.05));
-        change(h, f, r2(mn), curlRanges[h][f][1]);
-      }
-    }
-  }
-  function captureFist() {
-    for (let h = 0; h < 2; h++) {
-      if (!hands[h]?.present) continue;
-      for (let f = 0; f < 5; f++) {
-        const mx = Math.min(1, Math.max(hands[h].curl[f] ?? 1, curlRanges[h][f][0] + 0.05));
-        change(h, f, curlRanges[h][f][0], r2(mx));
-      }
-    }
-  }
-  // Countdown so you can click, then get into the pose before it captures.
-  let countdown = $state(0);
-  let captureKind = $state<"open" | "fist" | null>(null);
-  function startCapture(kind: "open" | "fist") {
-    if (countdown > 0) return;
-    captureKind = kind;
-    countdown = 3;
-    const tick = () => {
-      countdown -= 1;
-      if (countdown <= 0) {
-        kind === "open" ? captureOpen() : captureFist();
-        captureKind = null;
-      } else {
-        setTimeout(tick, 1000);
-      }
+  // Range calibration: wiggle each finger through its full motion; we track the
+  // smoothed min/max it reaches per finger (the EMA keeps a stray spike from
+  // setting the extreme), then write those as the per-finger range.
+  let wigglePhase = $state<"idle" | "ready" | "recording">("idle");
+  let wiggleCount = $state(0);
+  let wMin: number[][] = [];
+  let wMax: number[][] = [];
+  let wEma: number[][] = [];
+  let wSampler: ReturnType<typeof setInterval> | undefined;
+
+  function startWiggle() {
+    if (wigglePhase !== "idle") return;
+    wigglePhase = "ready";
+    wiggleCount = 3;
+    const ready = () => {
+      wiggleCount -= 1;
+      if (wiggleCount <= 0) recordWiggle();
+      else setTimeout(ready, 1000);
     };
-    setTimeout(tick, 1000);
+    setTimeout(ready, 1000);
+  }
+  function recordWiggle() {
+    wigglePhase = "recording";
+    wiggleCount = 6;
+    wMin = [[], []];
+    wMax = [[], []];
+    wEma = [[], []];
+    for (let h = 0; h < 2; h++)
+      for (let f = 0; f < 5; f++) {
+        const c = hands[h]?.curl[f] ?? 0;
+        wEma[h][f] = c;
+        wMin[h][f] = c;
+        wMax[h][f] = c;
+      }
+    wSampler = setInterval(() => {
+      for (let h = 0; h < 2; h++) {
+        if (!hands[h]?.present) continue;
+        for (let f = 0; f < 5; f++) {
+          wEma[h][f] = 0.5 * wEma[h][f] + 0.5 * (hands[h].curl[f] ?? 0);
+          const s = wEma[h][f];
+          if (s < wMin[h][f]) wMin[h][f] = s;
+          if (s > wMax[h][f]) wMax[h][f] = s;
+        }
+      }
+    }, 40);
+    const cd = () => {
+      wiggleCount -= 1;
+      if (wiggleCount <= 0) {
+        clearInterval(wSampler);
+        finishWiggle();
+      } else setTimeout(cd, 1000);
+    };
+    setTimeout(cd, 1000);
+  }
+  function finishWiggle() {
+    for (let h = 0; h < 2; h++) {
+      if (!hands[h]?.present) continue;
+      for (let f = 0; f < 5; f++) {
+        const mn = Math.max(0, r2(wMin[h][f]));
+        const mx = Math.min(1, r2(wMax[h][f]));
+        if (mx - mn >= 0.08) change(h, f, mn, mx); // only if a real range was seen
+      }
+    }
+    wigglePhase = "idle";
   }
 </script>
 
@@ -135,19 +162,22 @@
 
   <div class="card quickset">
     <div class="qhead">
-      <h3>Quick range set</h3>
+      <h3>Finger range calibration</h3>
       <p class="muted">
-        Hold the pose with both hands, then click — sets each finger's 0 (open) or full (fist) from where it
-        actually reads. Best for fingers limited by anatomy (the ring rests slightly curled; the thumb's
-        range is shorter). Saved, and re-applied automatically next session.
+        Click, then wiggle each finger through its full motion (open ⇄ fully curled) a few times. It records
+        the smoothed min/max each finger reaches and sets the per-finger range — so anatomy-limited fingers
+        (the ring rests slightly curled, the thumb's range is shorter) map cleanly. Saved automatically.
       </p>
     </div>
     <div class="qbtns">
-      <button class="btn tonal state-layer" disabled={!live || countdown > 0} onclick={() => startCapture("open")}>
-        {captureKind === "open" ? `Hold open… ${countdown}` : "Open hand → set 0"}
-      </button>
-      <button class="btn tonal state-layer" disabled={!live || countdown > 0} onclick={() => startCapture("fist")}>
-        {captureKind === "fist" ? `Make a fist… ${countdown}` : "Fist → set full"}
+      <button class="btn tonal state-layer wide" disabled={!live || wigglePhase !== "idle"} onclick={startWiggle}>
+        {#if wigglePhase === "ready"}
+          Get ready… {wiggleCount}
+        {:else if wigglePhase === "recording"}
+          Wiggle your fingers! {wiggleCount}
+        {:else}
+          Calibrate finger range
+        {/if}
       </button>
     </div>
   </div>

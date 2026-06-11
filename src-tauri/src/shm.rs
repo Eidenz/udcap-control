@@ -157,8 +157,10 @@ fn cstr(bytes: &[u8]) -> String {
 }
 
 fn curl(q: Quat) -> f32 {
-    let w = q.w.abs().min(1.0);
-    (2.0 * w.acos() / MAX_BEND_RAD).clamp(0.0, 1.0)
+    // Continuous rotation angle (2*atan2(|vec|, w)) so a hard curl can't fold
+    // back toward 0 the way 2*acos(|w|) does once rotation passes 180°.
+    let v = (q.x * q.x + q.y * q.y + q.z * q.z).sqrt();
+    (2.0 * v.atan2(q.w) / MAX_BEND_RAD).clamp(0.0, 1.0)
 }
 
 
