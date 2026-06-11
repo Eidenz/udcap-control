@@ -69,7 +69,9 @@
   const running = $derived(app.status?.server_running ?? false);
   const live = $derived(running || (!!shm && shm.server_pid !== 0));
   const shmError = $derived(app.status?.shm_error ?? null);
-  const hands = $derived(shm?.hands ?? []);
+  // Only trust glove/calibration state while the server is actually live — a
+  // stale shm from a crashed server shouldn't show "Calibrated" when offline.
+  const hands = $derived(live ? (shm?.hands ?? []) : []);
   const ready = $derived(hands.length === 2 && hands.every((h) => h.present && h.calibrated));
 </script>
 

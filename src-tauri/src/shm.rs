@@ -251,9 +251,18 @@ impl ShmMap {
     }
 
     pub fn view(&self) -> ShmView {
+        // A server that crashed without resetting server_pid leaves a stale
+        // (live-looking) shm. Report the pid only if that process is actually our
+        // running server, so the UI treats a stale shm as "offline".
+        fn pid_alive(pid: u32) -> bool {
+            pid != 0
+                && std::fs::read_to_string(format!("/proc/{pid}/comm"))
+                    .map(|c| c.trim() == "udcap-server")
+                    .unwrap_or(false)
+        }
         let g = unsafe { &*self.ptr };
         ShmView {
-            server_pid: g.server_pid,
+            server_pid: if pid_alive(g.server_pid) { g.server_pid } else { 0 },
             calib_state: g.calib_state,
             cmd_ack: g.cmd_ack,
             cmd_seq: g.cmd_seq,

@@ -237,8 +237,12 @@ async function tick() {
     if (present && !shmWasPresent) applySavedToShm();
     shmWasPresent = present;
 
+    // Only sound calibration cues while the server is live. A stale shm (crashed
+    // server) shouldn't replay "done" on launch; track silently while offline.
     const cs = app.status?.shm?.calib_state ?? 0;
-    if (cs !== prevCalibState) {
+    if (!present) {
+      prevCalibState = cs;
+    } else if (cs !== prevCalibState) {
       const snd = CALIB_SOUNDS[cs];
       if (snd) playCalib(snd);
       prevCalibState = cs;
