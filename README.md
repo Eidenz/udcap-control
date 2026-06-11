@@ -8,6 +8,12 @@ status, runs guided calibration, tunes per-finger curl/splay and the per-hand
 alignment offsets, remaps the controller inputs, and installs the SteamVR driver —
 all over a shared-memory contract (`udcap_shm.h`).
 
+## Run (user)
+
+If you plan on using Monado, you must install my [custom fork](https://github.com/Eidenz/Monado). This is because I use protocols that are not yet implemented in the official Monado repo. Installation procedures (only a few commands) available there.
+
+For SteamVR users, nothing special, the app should install its driver on first launch.
+
 ## Run (dev)
 
 ### You must clone [udcap-server](https://github.com/Eidenz/udcap-server) in a folder next to udcap-control, as this repo is the client app only.
@@ -18,6 +24,21 @@ pnpm install
 ./sync-steamvr.sh       # build + bundle the SteamVR driver (once, for SteamVR mode)
 pnpm tauri dev
 ```
+
+
+## Troubleshooting
+
+> My gloves are not detected in Monado!
+- Did you install the [custom fork](https://github.com/Eidenz/Monado)? Are your trackers connected to Monado? You should see your trackers and "UDCAP" gloves in the list if you use Envision.
+
+> My gloves are not detected in SteamVR!
+- Did you launch udcap-control before SteamVR? If not, try restarting SteamVR.
+
+> My hands position/rotation is wrong!
+- You can tweak it in the "Space" tab, which is saved on app restart.
+
+> Help, since installing your Monado fork, I see a bunch of extra trackers not connected!
+- This is because I reused my fork which adds hot-plug support to Monado. This is perfectly normal and expected: this is how I managed to add hot-plug. Your devices should still work the same.
 
 ## Monado & SteamVR
 

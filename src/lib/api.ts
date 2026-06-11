@@ -41,6 +41,7 @@ export interface ShmView {
   cmd_ack: number;
   cmd_seq: number;
   curl_gain: number;
+  raw_sensors: number[][]; // diagnostic: [hand][12 raw finger sensors]
   hands: HandView[];
 }
 

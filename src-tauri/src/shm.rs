@@ -98,6 +98,7 @@ struct Shm {
     calib_state: u32,
     curl_gain: f32,
     splay_gain: f32,
+    raw_sensors: [[f32; 12]; 2], // diagnostic
 }
 
 /* ---- Serializable views sent to the frontend ---- */
@@ -148,6 +149,7 @@ pub struct ShmView {
     pub cmd_seq: u32,
     pub curl_gain: f32,
     pub splay_gain: f32,
+    pub raw_sensors: [[f32; 12]; 2], // diagnostic
     pub hands: Vec<HandView>,
 }
 
@@ -277,6 +279,7 @@ impl ShmMap {
             cmd_seq: g.cmd_seq,
             curl_gain: g.curl_gain,
             splay_gain: g.splay_gain,
+            raw_sensors: g.raw_sensors,
             hands: (0..HAND_COUNT).map(|i| self.read_hand(i)).collect(),
         }
     }
