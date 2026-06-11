@@ -50,17 +50,31 @@ pub fn status() -> SteamvrStatus {
     SteamvrStatus { registered, paths_file_found: found, install_path: install_str }
 }
 
+// Copy via temp + rename so we never overwrite a .so a running SteamVR has loaded
+// (the rename swaps the dir entry to a new inode; the old one stays valid until
+// SteamVR restarts).
+fn atomic_copy(src: &Path, dst: &Path) -> Result<(), String> {
+    let tmp = dst.with_extension("tmp");
+    std::fs::copy(src, &tmp).map_err(|e| format!("copy {}: {e}", src.display()))?;
+    std::fs::rename(&tmp, dst).map_err(|e| format!("install {}: {e}", dst.display()))
+}
+
 fn copy_driver(src_udcap: &Path) -> Result<(), String> {
     let dst = install_dir();
     std::fs::create_dir_all(dst.join("bin/linux64")).map_err(|e| e.to_string())?;
-    std::fs::copy(src_udcap.join("driver.vrdrivermanifest"), dst.join("driver.vrdrivermanifest"))
-        .map_err(|e| format!("copy manifest: {e}"))?;
-    std::fs::copy(
-        src_udcap.join("bin/linux64/driver_udcap.so"),
-        dst.join("bin/linux64/driver_udcap.so"),
-    )
-    .map_err(|e| format!("copy driver: {e}"))?;
+    atomic_copy(&src_udcap.join("driver.vrdrivermanifest"), &dst.join("driver.vrdrivermanifest"))?;
+    atomic_copy(&src_udcap.join("bin/linux64/driver_udcap.so"), &dst.join("bin/linux64/driver_udcap.so"))?;
     Ok(())
+}
+
+// True if the installed driver differs from the bundled one (or isn't there).
+fn driver_outdated(src_udcap: &Path) -> bool {
+    let bundled = std::fs::read(src_udcap.join("bin/linux64/driver_udcap.so"));
+    let installed = std::fs::read(install_dir().join("bin/linux64/driver_udcap.so"));
+    match (bundled, installed) {
+        (Ok(a), Ok(b)) => a != b,
+        _ => true,
+    }
 }
 
 // Drop any external driver whose folder is named "udcap" (old or new install).
@@ -102,7 +116,7 @@ pub fn remove() -> Result<(), String> {
 // bundle. Called on startup so an app update auto-updates the driver without the
 // user needing to hit Reinstall.
 pub fn sync_if_registered(src_udcap: &Path) {
-    if status().registered {
+    if status().registered && driver_outdated(src_udcap) {
         let _ = copy_driver(src_udcap);
     }
 }
