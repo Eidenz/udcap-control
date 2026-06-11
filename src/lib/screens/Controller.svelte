@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fly } from "svelte/transition";
   import { app, io, saveIo, applyHandIo, defaultHandIo } from "$lib/state.svelte";
   import { testVibration, BTN_SOURCES, FINGER_SEL, type HandView } from "$lib/api";
   import Select from "$lib/components/Select.svelte";
@@ -55,6 +56,14 @@
     applyHandIo(0);
     applyHandIo(1);
     saveIo();
+  }
+
+  // Per-hand view: show one hand at a time, swapped with the arrows.
+  let active = $state(0);
+  let dir = $state(1);
+  function swap() {
+    dir = active === 0 ? 1 : -1;
+    active = active === 0 ? 1 : 0;
   }
 </script>
 
@@ -165,14 +174,22 @@
         <button class="btn text state-layer" onclick={reset}>Reset</button>
       </div>
     </div>
-    <div class="maps">
-      {#each cols as hand}
-        <div class="padcol">
-          {#if !io.linked}<div class="colh">{colName(hand)}</div>{/if}
-          {@render handmap(hand, !io.linked && hand === 0)}
-        </div>
-      {/each}
-    </div>
+    {#if io.linked}
+      <div class="maps">{@render handmap(0, false)}</div>
+    {:else}
+      <div class="swapbar">
+        <button class="arrow state-layer" onclick={swap} aria-label="Other hand">‹</button>
+        <span class="swaptitle">{active === 0 ? "Left" : "Right"} hand</span>
+        <button class="arrow state-layer" onclick={swap} aria-label="Other hand">›</button>
+      </div>
+      <div class="swapview">
+        {#key active}
+          <div class="swapslide" in:fly={{ x: dir * 60, duration: 260 }} out:fly={{ x: -dir * 60, duration: 260 }}>
+            {@render handmap(active, active === 1)}
+          </div>
+        {/key}
+      </div>
+    {/if}
   </div>
 
   <div class="card">
@@ -362,12 +379,45 @@
     align-items: center;
     gap: 16px;
   }
-  .padcol {
+  .swapbar {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 10px;
+  }
+  .arrow {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--outline-dim);
+    background: var(--surface-2);
+    color: var(--on-surface);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  .swaptitle {
+    min-width: 96px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--on-surface);
+  }
+  .swapview {
+    position: relative;
     width: 100%;
+    max-width: 680px;
+    margin: 0 auto;
+    aspect-ratio: 680 / 380;
+  }
+  .swapslide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
   }
   .handmap {
     position: relative;

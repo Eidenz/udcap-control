@@ -88,12 +88,28 @@
     <h3>About</h3>
     <div class="kv"><span>Application</span><b>UDCAP Control 0.1.0</b></div>
     <div class="kv"><span>Shared-memory contract</span><b>{shmVer ? `v${shmVer}` : "—"}</b></div>
-    <div class="kv"><span>Runtime</span><b>Monado · drv_udcap</b></div>
+    <div class="kv"><span>Runtimes</span><b>Monado · SteamVR</b></div>
     <div class="kv"><span>Author</span><b>Eidenz</b></div>
     <p class="muted">
       Hand tracking + Index-controller inputs for Udexreal (UDCAP) gloves on Linux. Pose comes from a
       Lighthouse tracker mounted on each glove.
     </p>
+  </div>
+
+  <div class="card credits">
+    <h3>Credits &amp; acknowledgements</h3>
+    <div class="credit">
+      <b>OldestNova</b>
+      <span>UDCAP glove decoding — the Community Hand Driver Core this app is built on (MIT).</span>
+    </div>
+    <div class="credit">
+      <b>Valve — OpenVR / SteamVR</b>
+      <span>SteamVR runtime &amp; driver SDK, plus the OpenVR hand-skeleton sample used for finger tracking (BSD-3).</span>
+    </div>
+    <div class="credit">
+      <b>Monado</b>
+      <span>The open-source OpenXR runtime the native driver (drv_udcap) plugs into.</span>
+    </div>
   </div>
 </div>
 
@@ -154,6 +170,24 @@
     font-size: 14px;
   }
   .about .kv span {
+    color: var(--muted);
+  }
+  .credit {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--outline-dim);
+  }
+  .credit:last-child {
+    border-bottom: none;
+  }
+  .credit b {
+    font-size: 14px;
+    color: var(--on-surface);
+  }
+  .credit span {
+    font-size: 13px;
     color: var(--muted);
   }
 </style>
