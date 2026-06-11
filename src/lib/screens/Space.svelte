@@ -6,6 +6,7 @@
     gripConfig,
     appMode,
     TRACKER_PRESETS,
+    presetOffsets,
     BUILTIN_GRIP,
     saveSpace,
     saveGrip,
@@ -54,7 +55,7 @@
   function selectTracker(name: string) {
     spaceConfig.preset = name;
     if (name !== "Custom" && TRACKER_PRESETS[name]) {
-      spaceConfig.offsets = clone(TRACKER_PRESETS[name]);
+      spaceConfig.offsets = clone(presetOffsets(name, appMode.mode));
       applyTrackerHand("left");
       applyTrackerHand("right");
     }

@@ -34,19 +34,37 @@ export function saveConfig() {
 // --- Space / grip alignment (built-in presets must mirror the server defaults) ---
 
 type Offset = { pos: number[]; deg: number[] };
-// Built-in hand-alignment profiles. Position stays 0 (our pose chain puts the
-// grip at the tracker — verified on hardware); rotation matches UDCAP's values.
-export const TRACKER_PRESETS: Record<string, { left: Offset; right: Offset }> = {
+// Runtime mode — Monado and SteamVR tune their alignment offsets separately
+// (their pose conventions differ), so the Space offsets are stored per-mode.
+export type AppMode = "monado" | "steamvr";
+
+// Built-in hand-alignment profiles, per runtime. Monado puts the grip at the
+// tracker (position ~0, rotation only); SteamVR needs a tracker→grip offset.
+export const TRACKER_PRESETS: Record<string, Record<AppMode, { left: Offset; right: Offset }>> = {
   "Vive Tracker 3.0": {
-    left: { pos: [0, 0, 0], deg: [45, 85, 0] },
-    right: { pos: [0, 0, 0], deg: [45, -85, 0] },
+    monado: {
+      left: { pos: [0, 0, 0], deg: [45, 85, 0] },
+      right: { pos: [0, 0, 0], deg: [45, -85, 0] },
+    },
+    steamvr: {
+      left: { pos: [0.07, 0.02, -0.12], deg: [60, -50, 45] },
+      right: { pos: [-0.07, 0.02, -0.12], deg: [60, 50, -45] },
+    },
   },
   Quest: {
-    left: { pos: [0, 0, 0], deg: [-35, 20, 0] },
-    right: { pos: [0, 0, 0], deg: [-35, -20, 0] },
+    monado: {
+      left: { pos: [0, 0, 0], deg: [-35, 20, 0] },
+      right: { pos: [0, 0, 0], deg: [-35, -20, 0] },
+    },
+    steamvr: {
+      left: { pos: [0, 0, 0], deg: [-35, 20, 0] },
+      right: { pos: [0, 0, 0], deg: [-35, -20, 0] },
+    },
   },
 };
-export const BUILTIN_TRACKER = TRACKER_PRESETS["Vive Tracker 3.0"];
+export const presetOffsets = (name: string, mode: AppMode) =>
+  TRACKER_PRESETS[name]?.[mode] ?? TRACKER_PRESETS["Vive Tracker 3.0"][mode];
+
 export const BUILTIN_GRIP = {
   left: { pos: [0.06, -0.06, 0.01], rot: [70, -5, -55] },
   right: { pos: [-0.06, -0.06, 0.01], rot: [70, -5, 75] },
@@ -54,9 +72,6 @@ export const BUILTIN_GRIP = {
 
 export const CURL_GAIN_MAX = 1.5;
 
-// Runtime mode. Monado and SteamVR need different alignment offsets (their pose
-// conventions differ), so the Space offsets are stored per-mode.
-export type AppMode = "monado" | "steamvr";
 export const appMode = $state<{ mode: AppMode }>({
   mode: (ls?.getItem("udcap.mode") as AppMode) === "steamvr" ? "steamvr" : "monado",
 });
@@ -67,7 +82,7 @@ function loadSpaceFor(mode: AppMode) {
     const legacy = loadJSON("udcap.space", null); // migrate pre-toggle config
     if (legacy) return legacy;
   }
-  return { preset: "Vive Tracker 3.0", offsets: clone(BUILTIN_TRACKER) };
+  return { preset: "Vive Tracker 3.0", offsets: clone(presetOffsets("Vive Tracker 3.0", mode)) };
 }
 
 export const spaceConfig = $state(loadSpaceFor(appMode.mode));
