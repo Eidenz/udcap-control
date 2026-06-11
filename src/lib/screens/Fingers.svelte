@@ -112,7 +112,10 @@
     <div class="sh splayrow">
       <div>
         <h3>Finger splay</h3>
-        <p class="muted">Sideways finger spread. 0 = off; flip to a negative value if it spreads the wrong way.</p>
+        <p class="muted">
+          Sideways finger spread. 0 = off; negative flips the direction. (Note: VRChat ignores
+          abduction — other OpenXR apps may use it.)
+        </p>
       </div>
       <span class="sval">{curl.splay.toFixed(1)}×</span>
     </div>
