@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app } from "$lib/state.svelte";
+  import { app, appMode, setMode } from "$lib/state.svelte";
   import { FINGERS, udevStatus, udevInstall, type HandView, type UdevStatus } from "$lib/api";
+  import Segmented from "$lib/components/Segmented.svelte";
 
   let { onCalibrate }: { onCalibrate: () => void } = $props();
 
@@ -94,6 +95,21 @@
 {/snippet}
 
 <div class="screen">
+  <div class="card mode">
+    <div>
+      <h3>Runtime mode</h3>
+      <p class="muted">
+        Which VR runtime you play in. This switches the hand-alignment offsets (in the Space tab) to that
+        runtime's set — they tune differently.
+      </p>
+    </div>
+    <Segmented
+      value={appMode.mode === "steamvr" ? "SteamVR" : "Monado"}
+      options={["Monado", "SteamVR"]}
+      onchange={(v) => setMode(v === "SteamVR" ? "steamvr" : "monado")}
+    />
+  </div>
+
   {#if udev && !udevOk}
     <div class="card setup">
       <div>
@@ -168,6 +184,19 @@
   }
   .setup p {
     margin: 4px 0 0;
+  }
+  .mode {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .mode h3 {
+    margin: 0;
+  }
+  .mode p {
+    margin: 4px 0 0;
+    max-width: 46ch;
   }
   .gloves {
     display: grid;

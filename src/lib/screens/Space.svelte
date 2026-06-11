@@ -4,6 +4,7 @@
     saveConfig,
     spaceConfig,
     gripConfig,
+    appMode,
     TRACKER_PRESETS,
     BUILTIN_GRIP,
     saveSpace,
@@ -116,6 +117,7 @@
       <h3>Space orientation</h3>
       <p class="muted">Align the hands to the trackers, and place VRChat's menu. Saved and applied live.</p>
     </div>
+    <span class="modechip">{appMode.mode === "steamvr" ? "SteamVR" : "Monado"} offsets</span>
   </div>
 
   <div class="section">
@@ -165,6 +167,16 @@
     color: var(--muted);
     margin: 4px 0 0;
     font-size: 13px;
+  }
+  .modechip {
+    flex: none;
+    align-self: flex-start;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+    font-size: 12px;
+    font-weight: 700;
   }
   .section {
     display: flex;

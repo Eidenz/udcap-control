@@ -64,9 +64,23 @@ export const BUILTIN_GRIP = {
 
 export const CURL_GAIN_MAX = 1.5;
 
-export const spaceConfig = $state(
-  loadJSON("udcap.space", { preset: "Vive Tracker 3.0", offsets: clone(BUILTIN_TRACKER) }),
-);
+// Runtime mode. Monado and SteamVR need different alignment offsets (their pose
+// conventions differ), so the Space offsets are stored per-mode.
+export type AppMode = "monado" | "steamvr";
+export const appMode = $state<{ mode: AppMode }>({
+  mode: (ls?.getItem("udcap.mode") as AppMode) === "steamvr" ? "steamvr" : "monado",
+});
+function loadSpaceFor(mode: AppMode) {
+  const fresh = loadJSON(`udcap.space.${mode}`, null);
+  if (fresh) return fresh;
+  if (mode === "monado") {
+    const legacy = loadJSON("udcap.space", null); // migrate pre-toggle config
+    if (legacy) return legacy;
+  }
+  return { preset: "Vive Tracker 3.0", offsets: clone(BUILTIN_TRACKER) };
+}
+
+export const spaceConfig = $state(loadSpaceFor(appMode.mode));
 export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", values: clone(BUILTIN_GRIP) }));
 export const curl = $state({
   gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)),
@@ -110,9 +124,26 @@ export function applyHandIo(h: number) {
   setAnalog(h, x.tFinger, x.gFinger, x.tMin, x.tMax, x.gMin, x.gMax).catch(() => {});
 }
 
-export const saveSpace = () => ls?.setItem("udcap.space", JSON.stringify(spaceConfig));
+export const saveSpace = () => ls?.setItem(`udcap.space.${appMode.mode}`, JSON.stringify(spaceConfig));
 export const saveGrip = () => ls?.setItem("udcap.grip", JSON.stringify(gripConfig));
 export const saveCurlGain = () => ls?.setItem("udcap.gain", String(curl.gain));
+
+// Write the active mode's offsets to the shm (both hands).
+export function applyOffsetNow() {
+  setOffset(0, spaceConfig.offsets.left.pos, spaceConfig.offsets.left.deg).catch(() => {});
+  setOffset(1, spaceConfig.offsets.right.pos, spaceConfig.offsets.right.deg).catch(() => {});
+}
+// Switch runtime mode: persist the mode we leave, load + apply the new mode's offsets.
+export function setMode(m: AppMode) {
+  if (m === appMode.mode) return;
+  saveSpace();
+  appMode.mode = m;
+  ls?.setItem("udcap.mode", m);
+  const next = loadSpaceFor(m);
+  spaceConfig.preset = next.preset;
+  spaceConfig.offsets = next.offsets;
+  applyOffsetNow();
+}
 
 // Calibration audio cues. Driven globally off calib_state so they play whoever
 // triggered calibration (GUI button *or* the glove menu button), on any tab.
@@ -181,13 +212,9 @@ function playCalib(name: string) {
   });
 }
 
-// Push any *custom* saved alignment to the shm. Built-in modes are left alone:
-// the server already wrote those defaults at startup.
+// Push the active mode's saved alignment to the shm on connect.
 export function applySavedToShm() {
-  if (spaceConfig.preset === "Custom") {
-    setOffset(0, spaceConfig.offsets.left.pos, spaceConfig.offsets.left.deg).catch(() => {});
-    setOffset(1, spaceConfig.offsets.right.pos, spaceConfig.offsets.right.deg).catch(() => {});
-  }
+  applyOffsetNow();
   if (gripConfig.mode === "Custom") {
     setGrip(0, gripConfig.values.left.pos, gripConfig.values.left.rot).catch(() => {});
     setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
