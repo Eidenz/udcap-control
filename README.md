@@ -29,7 +29,7 @@ pnpm tauri dev
 ## Troubleshooting
 
 > My gloves are not detected in Monado!
-- Did you install the [custom fork](https://github.com/Eidenz/Monado)? Are your trackers connected to Monado? You should see your trackers and "UDCAP" gloves in the list if you use Envision.
+- Did you install the [custom fork](https://github.com/Eidenz/Monado)? Are your trackers paired and connected to Monado? You should see your trackers and "UDCAP" gloves in the list if you use Envision.
 
 > My gloves are not detected in SteamVR!
 - Did you launch udcap-control before SteamVR? If not, try restarting SteamVR.

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { app, calibSound, toggleCalibSound } from "$lib/state.svelte";
-  import { sendCommand, CMD, FINGERS } from "$lib/api";
+  import { sendCommand, CMD } from "$lib/api";
 
   const shm = $derived(app.status?.shm ?? null);
   const live = $derived(!!shm && shm.server_pid !== 0);
@@ -91,19 +91,6 @@
 
           <div class="counter" class:capturing={capturing || countdown === 0}>
             {#if capturing}Captured ✓{:else if countdown > 0}{countdown}{:else}…{/if}
-          </div>
-
-          <div class="preview">
-            {#each hands as h, hi}
-              {#if h.present}
-                <div class="phand">
-                  <span class="plabel">{hi === 0 ? "L" : "R"}</span>
-                  {#each FINGERS as _, i}
-                    <div class="pbar"><div class="pfill" style="height:{(h.curl[i] ?? 0) * 100}%"></div></div>
-                  {/each}
-                </div>
-              {/if}
-            {/each}
           </div>
         {/if}
 
@@ -206,34 +193,5 @@
     font-size: 20px;
     color: var(--success);
     background: rgba(132, 224, 164, 0.16);
-  }
-  .preview {
-    display: flex;
-    gap: 24px;
-  }
-  .phand {
-    display: flex;
-    align-items: flex-end;
-    gap: 5px;
-  }
-  .plabel {
-    color: var(--muted);
-    font-weight: 700;
-    align-self: center;
-    margin-right: 4px;
-  }
-  .pbar {
-    width: 12px;
-    height: 56px;
-    background: var(--track);
-    border-radius: var(--radius-pill);
-    display: flex;
-    align-items: flex-end;
-    overflow: hidden;
-  }
-  .pfill {
-    width: 100%;
-    background: var(--primary);
-    transition: height 0.08s linear;
   }
 </style>

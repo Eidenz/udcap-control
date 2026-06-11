@@ -3,12 +3,15 @@
     app,
     curl,
     saveCurlGain,
+    splay,
+    saveSplayGain,
     curlRanges,
     saveCurlRanges,
     applyCurlRange,
     CURL_GAIN_MAX,
+    SPLAY_GAIN_MAX,
   } from "$lib/state.svelte";
-  import { FINGERS, setCurlGain } from "$lib/api";
+  import { FINGERS, setCurlGain, setSplayGain } from "$lib/api";
   import FingerRange from "$lib/components/FingerRange.svelte";
 
   const GAIN_MIN = 0.3;
@@ -16,6 +19,11 @@
     curl.gain = Math.round(v * 100) / 100;
     setCurlGain(curl.gain).catch(() => {});
     saveCurlGain();
+  }
+  function editSplay(v: number) {
+    splay.gain = Math.round(v * 100) / 100;
+    setSplayGain(splay.gain).catch(() => {});
+    saveSplayGain();
   }
 
   const shm = $derived(app.status?.shm ?? null);
@@ -96,25 +104,6 @@
     }
     wigglePhase = "idle";
   }
-
-  // DIAGNOSTIC: raw sensor hunt for finger abduction. Snapshot a "together" and a
-  // "spread" pose (same finger extension) and compare — channels that move are
-  // the abduction sensors.
-  const rawSensors = $derived(app.status?.shm?.raw_sensors ?? [[], []]);
-  let snapA = $state<number[][] | null>(null);
-  let snapB = $state<number[][] | null>(null);
-  function snap(which: "a" | "b") {
-    const r = rawSensors.map((h) => [...(h ?? [])]);
-    if (which === "a") snapA = r;
-    else snapB = r;
-  }
-  const deltas = $derived.by(() => {
-    if (!snapA || !snapB) return null;
-    return [0, 1].map((h) =>
-      Array.from({ length: 12 }, (_, k) => Math.round((snapB![h][k] ?? 0) - (snapA![h][k] ?? 0))),
-    );
-  });
-  const maxDelta = $derived(deltas ? Math.max(1, ...deltas.flat().map((d) => Math.abs(d))) : 1);
 </script>
 
 {#snippet handCard(hand: number, name: string)}
@@ -170,6 +159,24 @@
     />
   </div>
 
+  <div class="card strength">
+    <div class="sh">
+      <div>
+        <h3>Splay strength</h3>
+        <p class="muted">How far the fingers spread sideways. 0% disables splay; turn up to exaggerate.</p>
+      </div>
+      <span class="sval">{Math.round((splay.gain / SPLAY_GAIN_MAX) * 100)}%</span>
+    </div>
+    <input
+      type="range"
+      min="0"
+      max={SPLAY_GAIN_MAX}
+      step="0.1"
+      value={splay.gain}
+      oninput={(e) => editSplay(parseFloat(e.currentTarget.value))}
+    />
+  </div>
+
   {#if !live}
     <div class="card banner"><p>Start the server and connect gloves to see live readings.</p></div>
   {/if}
@@ -197,46 +204,6 @@
           Calibrate finger range
         {/if}
       </button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Raw sensor diagnostic <span class="tag">temporary</span></h3>
-    <p class="muted">
-      Hunting where finger abduction lives. Hold fingers <b>together</b> (extended) → Snapshot A, then
-      <b>spread</b> them (same extension) → Snapshot B. Channels with the biggest A→B change (highlighted) are
-      the abduction sensors.
-    </p>
-    <div class="snaprow">
-      <button class="btn tonal state-layer" disabled={!live} onclick={() => snap("a")}>
-        Snapshot A (together){snapA ? " ✓" : ""}
-      </button>
-      <button class="btn tonal state-layer" disabled={!live} onclick={() => snap("b")}>
-        Snapshot B (spread){snapB ? " ✓" : ""}
-      </button>
-      <button
-        class="btn text state-layer"
-        onclick={() => {
-          snapA = null;
-          snapB = null;
-        }}>Clear</button
-      >
-    </div>
-    <div class="rawhands">
-      {#each [0, 1] as h}
-        <div class="rawhand">
-          <span class="dh">{h === 0 ? "Left" : "Right"}</span>
-          <div class="rawgrid">
-            {#each Array(12) as _, k}
-              <div class="rawcell" class:hot={deltas && Math.abs(deltas[h][k]) >= 0.4 * maxDelta}>
-                <span class="rk">s{k}</span>
-                <b>{Math.round(rawSensors[h]?.[k] ?? 0)}</b>
-                {#if deltas}<span class="rd">Δ{deltas[h][k]}</span>{/if}
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/each}
     </div>
   </div>
 </div>
@@ -276,71 +243,6 @@
     display: flex;
     gap: 10px;
     flex: none;
-  }
-  .tag {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--on-primary-container);
-    background: var(--primary-container);
-    padding: 2px 7px;
-    border-radius: var(--radius-pill);
-    vertical-align: middle;
-    margin-left: 6px;
-  }
-  .snaprow {
-    display: flex;
-    gap: 10px;
-    margin: 14px 0;
-    flex-wrap: wrap;
-  }
-  .rawhands {
-    display: flex;
-    gap: 24px;
-    flex-wrap: wrap;
-  }
-  .rawhand {
-    flex: 1;
-    min-width: 300px;
-  }
-  .dh {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--on-surface-var);
-  }
-  .rawgrid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 6px;
-    margin-top: 8px;
-  }
-  .rawcell {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 6px 0;
-    background: var(--surface-2);
-    border-radius: var(--radius-s);
-    border: 1px solid transparent;
-  }
-  .rawcell.hot {
-    border-color: var(--primary);
-    background: var(--primary-container);
-  }
-  .rawcell .rk {
-    font-size: 10px;
-    color: var(--muted);
-  }
-  .rawcell b {
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-  }
-  .rawcell .rd {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--primary);
-    font-variant-numeric: tabular-nums;
   }
   .chead {
     display: flex;

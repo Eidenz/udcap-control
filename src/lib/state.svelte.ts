@@ -4,6 +4,7 @@ import {
   setOffset,
   setGrip,
   setCurlGain,
+  setSplayGain,
   setCurlRange,
   setBtnMap,
   setAnalog,
@@ -71,6 +72,7 @@ export const BUILTIN_GRIP = {
 };
 
 export const CURL_GAIN_MAX = 1.5;
+export const SPLAY_GAIN_MAX = 0.5;
 
 export const appMode = $state<{ mode: AppMode }>({
   mode: (ls?.getItem("udcap.mode") as AppMode) === "steamvr" ? "steamvr" : "monado",
@@ -90,6 +92,12 @@ export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", valu
 export const curl = $state({
   gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)),
 });
+// Global finger-splay strength (1 = measured); scales the abduction the core
+// now decodes from the raw sensors. Persisted, re-applied on connect.
+export const splay = $state({
+  gain: Math.min(SPLAY_GAIN_MAX, Number(ls?.getItem("udcap.splay") ?? 1)),
+});
+export const saveSplayGain = () => ls?.setItem("udcap.splay", String(splay.gain));
 
 // Per-hand, per-finger curl remap [hand][finger] = [min, max]. Persisted and
 // re-applied on connect (the server resets to identity each start).
@@ -265,6 +273,7 @@ export function applySavedToShm() {
     setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
   }
   setCurlGain(curl.gain).catch(() => {});
+  setSplayGain(splay.gain).catch(() => {});
   for (let h = 0; h < 2; h++) for (let f = 0; f < 5; f++) applyCurlRange(h, f);
   applyHandIo(0);
   applyHandIo(1);
