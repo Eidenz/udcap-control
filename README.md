@@ -10,6 +10,8 @@ all over a shared-memory contract (`udcap_shm.h`).
 
 ## Run (dev)
 
+### You must clone [udcap-server](https://github.com/Eidenz/udcap-server) in a folder next to udcap-control, as this repo is the client app only.
+
 ```bash
 pnpm install
 ./sync-server.sh        # build + bundle the udcap-server binary (once)
