@@ -1,5 +1,6 @@
 mod server;
 mod shm;
+mod steamvr;
 mod udev;
 
 use server::ServerProc;
@@ -220,6 +221,26 @@ fn udev_install() -> Result<(), String> {
     udev::install()
 }
 
+#[tauri::command]
+fn steamvr_status() -> steamvr::SteamvrStatus {
+    steamvr::status()
+}
+
+#[tauri::command]
+fn steamvr_install(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    let src = app
+        .path()
+        .resolve("steamvr-driver/udcap", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| e.to_string())?;
+    steamvr::install(&src)
+}
+
+#[tauri::command]
+fn steamvr_remove() -> Result<(), String> {
+    steamvr::remove()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -246,6 +267,9 @@ pub fn run() {
             send_command,
             udev_status,
             udev_install,
+            steamvr_status,
+            steamvr_install,
+            steamvr_remove,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { app, io, saveIo, applyHandIo, defaultHandIo } from "$lib/state.svelte";
-  import { testVibration, BTN_OUTPUTS, BTN_SOURCES, FINGER_SEL, type HandView } from "$lib/api";
+  import { testVibration, BTN_SOURCES, FINGER_SEL, type HandView } from "$lib/api";
   import Select from "$lib/components/Select.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
+  import DualRange from "$lib/components/DualRange.svelte";
 
   const shm = $derived(app.status?.shm ?? null);
   const live = $derived(!!shm && shm.server_pid !== 0);
@@ -11,6 +12,18 @@
   // Displayed columns: one when linked, two when per-hand.
   const cols = $derived(io.linked ? [0] : [0, 1]);
   const colName = (h: number) => (io.linked ? "Both hands" : h === 0 ? "Left" : "Right");
+
+  // Source-picker nodes, positioned at the hand image's dashed-line endpoints.
+  // o = output index (0 A, 1 B, 2 System, 3 Stick, 4 Trigger, 5 Grip).
+  // top/x are percentages of the map box; x is the gap from the hand side.
+  const NODES = [
+    { o: 3, label: "Stick", top: 11, x: 56 },
+    { o: 1, label: "B", top: 25, x: 53 },
+    { o: 0, label: "A", top: 34, x: 70 },
+    { o: 2, label: "System", top: 44, x: 55 },
+    { o: 4, label: "Trigger", top: 65, x: 52 },
+    { o: 5, label: "Grip", top: 86, x: 52 },
+  ];
 
   function commit(hand: number, fn: (h: number) => void) {
     const targets = io.linked ? [0, 1] : [hand];
@@ -27,6 +40,16 @@
     commit(hand, (h) => (io.hands[h][which] = Math.max(0, FINGER_SEL.indexOf(name))));
   const editNum = (hand: number, key: "tMin" | "tMax" | "gMin" | "gMax", v: number) =>
     commit(hand, (h) => (io.hands[h][key] = r2(v)));
+  const editRange = (hand: number, kind: "t" | "g", lo: number, hi: number) =>
+    commit(hand, (h) => {
+      if (kind === "t") {
+        io.hands[h].tMin = r2(lo);
+        io.hands[h].tMax = r2(hi);
+      } else {
+        io.hands[h].gMin = r2(lo);
+        io.hands[h].gMax = r2(hi);
+      }
+    });
   function reset() {
     io.hands = [defaultHandIo(), defaultHandIo()];
     applyHandIo(0);
@@ -90,6 +113,27 @@
   />
 {/snippet}
 
+{#snippet handmap(hand: number, mirror: boolean)}
+  <div class="handmap" class:mirror>
+    <img class="hand" src="/hand.png" alt="hand" />
+    {#each NODES as n}
+      <div
+        class="hnode"
+        class:assigned={io.hands[hand].btn[n.o] !== 0}
+        style="top:{n.top}%;{mirror ? 'right' : 'left'}:{n.x}%"
+      >
+        <span class="hlabel">{n.label}</span>
+        <Select
+          compact
+          value={BTN_SOURCES[io.hands[hand].btn[n.o]] ?? "None"}
+          options={BTN_SOURCES}
+          onchange={(name) => editBtn(hand, n.o, name)}
+        />
+      </div>
+    {/each}
+  </div>
+{/snippet}
+
 <div class="screen">
   {#if !live}
     <div class="card banner"><p>Start the server and connect gloves to see live inputs.</p></div>
@@ -121,20 +165,11 @@
         <button class="btn text state-layer" onclick={reset}>Reset</button>
       </div>
     </div>
-    <div class="grid" style="grid-template-columns: repeat({cols.length}, 1fr)">
+    <div class="maps">
       {#each cols as hand}
-        <div class="col">
+        <div class="padcol">
           {#if !io.linked}<div class="colh">{colName(hand)}</div>{/if}
-          {#each BTN_OUTPUTS as out, o}
-            <div class="maprow">
-              <span class="ml">{out}</span>
-              <Select
-                value={BTN_SOURCES[io.hands[hand].btn[o]] ?? "None"}
-                options={BTN_SOURCES}
-                onchange={(name) => editBtn(hand, o, name)}
-              />
-            </div>
-          {/each}
+          {@render handmap(hand, !io.linked && hand === 0)}
         </div>
       {/each}
     </div>
@@ -148,16 +183,26 @@
         <div class="col">
           {#if !io.linked}<div class="colh">{colName(hand)}</div>{/if}
           <div class="analog">
-            <span class="ml">Trigger</span>
-            <Select value={FINGER_SEL[io.hands[hand].tFinger]} options={FINGER_SEL.slice(0, 5)} onchange={(n) => editFinger(hand, "tFinger", n)} />
-            <span class="mm">min{@render numField(hand, "tMin", io.hands[hand].tMin)}</span>
-            <span class="mm">max{@render numField(hand, "tMax", io.hands[hand].tMax)}</span>
+            <div class="arow">
+              <span class="ml">Trigger</span>
+              <Select value={FINGER_SEL[io.hands[hand].tFinger]} options={FINGER_SEL.slice(0, 5)} onchange={(n) => editFinger(hand, "tFinger", n)} />
+            </div>
+            <div class="arow">
+              <DualRange low={io.hands[hand].tMin} high={io.hands[hand].tMax} onchange={(lo, hi) => editRange(hand, "t", lo, hi)} />
+              <span class="mm">min{@render numField(hand, "tMin", io.hands[hand].tMin)}</span>
+              <span class="mm">max{@render numField(hand, "tMax", io.hands[hand].tMax)}</span>
+            </div>
           </div>
           <div class="analog">
-            <span class="ml">Grip</span>
-            <Select value={FINGER_SEL[io.hands[hand].gFinger]} options={FINGER_SEL} onchange={(n) => editFinger(hand, "gFinger", n)} />
-            <span class="mm">min{@render numField(hand, "gMin", io.hands[hand].gMin)}</span>
-            <span class="mm">max{@render numField(hand, "gMax", io.hands[hand].gMax)}</span>
+            <div class="arow">
+              <span class="ml">Grip</span>
+              <Select value={FINGER_SEL[io.hands[hand].gFinger]} options={FINGER_SEL} onchange={(n) => editFinger(hand, "gFinger", n)} />
+            </div>
+            <div class="arow">
+              <DualRange low={io.hands[hand].gMin} high={io.hands[hand].gMax} onchange={(lo, hi) => editRange(hand, "g", lo, hi)} />
+              <span class="mm">min{@render numField(hand, "gMin", io.hands[hand].gMin)}</span>
+              <span class="mm">max{@render numField(hand, "gMax", io.hands[hand].gMax)}</span>
+            </div>
           </div>
         </div>
       {/each}
@@ -311,11 +356,57 @@
     font-weight: 700;
     color: var(--on-surface-var);
   }
-  .maprow {
+  .maps {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 16px;
+  }
+  .padcol {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  .handmap {
+    position: relative;
+    width: 100%;
+    max-width: 680px;
+    aspect-ratio: 680 / 380;
+  }
+  .hand {
+    position: absolute;
+    left: 1%;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 88%;
+    width: auto;
+    opacity: 0.8;
+    pointer-events: none;
+    user-select: none;
+  }
+  .mirror .hand {
+    left: auto;
+    right: 1%;
+    transform: translateY(-50%) scaleX(-1);
+  }
+  .hnode {
+    position: absolute;
+    transform: translateY(-50%);
+    width: 110px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hlabel {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--on-surface-var);
+    padding-left: 3px;
+  }
+  .hnode.assigned .hlabel {
+    color: var(--primary);
   }
   .ml {
     font-size: 14px;
@@ -324,12 +415,17 @@
   }
   .analog {
     display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .arow {
+    display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
   }
-  .analog .ml {
-    width: 52px;
+  .arow .ml {
+    width: 56px;
+    flex: none;
   }
   .mm {
     display: flex;

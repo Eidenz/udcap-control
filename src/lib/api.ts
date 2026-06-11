@@ -113,3 +113,12 @@ export interface UdevStatus {
 }
 export const udevStatus = () => invoke<UdevStatus>("udev_status");
 export const udevInstall = () => invoke("udev_install");
+
+export interface SteamvrStatus {
+  registered: boolean;
+  paths_file_found: boolean;
+  install_path: string;
+}
+export const steamvrStatus = () => invoke<SteamvrStatus>("steamvr_status");
+export const steamvrInstall = () => invoke("steamvr_install");
+export const steamvrRemove = () => invoke("steamvr_remove");

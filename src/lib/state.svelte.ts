@@ -104,7 +104,7 @@ export const defaultHandIo = (): HandIO => ({
   gFinger: 5,
   tMin: 0.15,
   tMax: 0.85,
-  gMin: 0.15,
+  gMin: 0.6,
   gMax: 0.85,
 });
 function loadIo() {

@@ -3,7 +3,8 @@
     value = $bindable(),
     options,
     onchange,
-  }: { value: string; options: string[]; onchange?: (v: string) => void } = $props();
+    compact = false,
+  }: { value: string; options: string[]; onchange?: (v: string) => void; compact?: boolean } = $props();
 
   let open = $state(false);
 
@@ -14,7 +15,7 @@
   }
 </script>
 
-<div class="select">
+<div class="select" class:compact>
   <button type="button" class="trigger state-layer" class:open onclick={() => (open = !open)}>
     <span>{value}</span>
     <svg class="arrow" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="m7 10 5 5 5-5z" /></svg>
@@ -57,6 +58,13 @@
   }
   .trigger.open {
     border-color: var(--primary);
+  }
+  .compact .trigger {
+    min-width: 0;
+    width: 100%;
+    height: 34px;
+    padding: 0 6px 0 10px;
+    font-size: 13px;
   }
   .arrow {
     color: var(--muted);

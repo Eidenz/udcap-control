@@ -1,7 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { app, appMode, setMode } from "$lib/state.svelte";
-  import { FINGERS, udevStatus, udevInstall, type HandView, type UdevStatus } from "$lib/api";
+  import {
+    udevStatus,
+    udevInstall,
+    steamvrStatus,
+    steamvrInstall,
+    steamvrRemove,
+    type HandView,
+    type UdevStatus,
+    type SteamvrStatus,
+  } from "$lib/api";
   import Segmented from "$lib/components/Segmented.svelte";
 
   let { onCalibrate }: { onCalibrate: () => void } = $props();
@@ -30,14 +39,38 @@
     }
   }
 
+  let svr = $state<SteamvrStatus | null>(null);
+  let svrBusy = $state(false);
+  let svrError = $state<string | null>(null);
+  $effect(() => {
+    if (appMode.mode === "steamvr") refreshSvr();
+  });
+  async function refreshSvr() {
+    try {
+      svr = await steamvrStatus();
+    } catch {
+      svr = null;
+    }
+  }
+  async function svrAction(fn: () => Promise<unknown>) {
+    svrBusy = true;
+    svrError = null;
+    try {
+      await fn();
+      await refreshSvr();
+    } catch (e) {
+      svrError = String(e);
+    } finally {
+      svrBusy = false;
+    }
+  }
+
   const shm = $derived(app.status?.shm ?? null);
   const running = $derived(app.status?.server_running ?? false);
   const live = $derived(running || (!!shm && shm.server_pid !== 0));
   const shmError = $derived(app.status?.shm_error ?? null);
   const hands = $derived(shm?.hands ?? []);
   const ready = $derived(hands.length === 2 && hands.every((h) => h.present && h.calibrated));
-
-  const fingerKey = ["T", "I", "M", "R", "P"];
 </script>
 
 {#snippet glove(h: HandView | undefined, name: string)}
@@ -65,15 +98,6 @@
         <div class="stat">
           <span class="sval mono">{h.fw || "—"}</span><span class="slabel">Firmware</span>
         </div>
-      </div>
-
-      <div class="fingers">
-        {#each FINGERS as f, i}
-          <div class="finger">
-            <div class="ftrack"><div class="ffill" style="height:{(h.curl[i] ?? 0) * 100}%"></div></div>
-            <span class="flabel">{fingerKey[i]}</span>
-          </div>
-        {/each}
       </div>
 
       <div class="controls">
@@ -109,6 +133,32 @@
       onchange={(v) => setMode(v === "SteamVR" ? "steamvr" : "monado")}
     />
   </div>
+
+  {#if appMode.mode === "steamvr"}
+    <div class="card setup steamvr">
+      <div>
+        <h3>SteamVR driver</h3>
+        <p class="muted">
+          {#if svr && !svr.paths_file_found}
+            Launch SteamVR once first, then install the driver here.
+          {:else if svr?.registered}
+            Installed. <b>Restart SteamVR</b> after installing, reinstalling, or removing.
+          {:else}
+            Install the driver so the gloves show up as Knuckles controllers in SteamVR. No terminal needed.
+          {/if}
+          {#if svrError}<br /><span class="err">{svrError}</span>{/if}
+        </p>
+      </div>
+      <div class="svr-actions">
+        <button class="btn filled state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrInstall)}>
+          {svrBusy ? "Working…" : svr?.registered ? "Reinstall" : "Install"}
+        </button>
+        {#if svr?.registered}
+          <button class="btn text state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrRemove)}>Remove</button>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   {#if udev && !udevOk}
     <div class="card setup">
@@ -198,6 +248,14 @@
     margin: 4px 0 0;
     max-width: 46ch;
   }
+  .svr-actions {
+    display: flex;
+    gap: 8px;
+    flex: none;
+  }
+  .err {
+    color: #ff8a8a;
+  }
   .gloves {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -250,38 +308,6 @@
   .slabel {
     font-size: 11px;
     color: var(--muted);
-  }
-  .fingers {
-    display: flex;
-    gap: 12px;
-    justify-content: space-around;
-    margin-bottom: 18px;
-  }
-  .finger {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-  }
-  .ftrack {
-    width: 22px;
-    height: 96px;
-    background: var(--track);
-    border-radius: var(--radius-pill);
-    display: flex;
-    align-items: flex-end;
-    overflow: hidden;
-  }
-  .ffill {
-    width: 100%;
-    background: linear-gradient(var(--primary), #8f8bff);
-    border-radius: var(--radius-pill);
-    transition: height 0.08s linear;
-  }
-  .flabel {
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 600;
   }
   .controls {
     display: flex;
