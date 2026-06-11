@@ -97,3 +97,12 @@ pub fn remove() -> Result<(), String> {
     let _ = std::fs::remove_dir_all(install_dir());
     Ok(())
 }
+
+// If the driver is already registered, refresh the installed copy from the app
+// bundle. Called on startup so an app update auto-updates the driver without the
+// user needing to hit Reinstall.
+pub fn sync_if_registered(src_udcap: &Path) {
+    if status().registered {
+        let _ = copy_driver(src_udcap);
+    }
+}

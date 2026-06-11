@@ -122,10 +122,7 @@
   <div class="card mode">
     <div>
       <h3>Runtime mode</h3>
-      <p class="muted">
-        Which VR runtime you play in. This switches the hand-alignment offsets (in the Space tab) to that
-        runtime's set — they tune differently.
-      </p>
+      <p class="muted">Switches the Space-tab hand-alignment offsets to the chosen runtime's set.</p>
     </div>
     <Segmented
       value={appMode.mode === "steamvr" ? "SteamVR" : "Monado"}
@@ -134,28 +131,24 @@
     />
   </div>
 
-  {#if appMode.mode === "steamvr"}
+  {#if appMode.mode === "steamvr" && svr && !svr.registered}
     <div class="card setup steamvr">
       <div>
         <h3>SteamVR driver</h3>
         <p class="muted">
-          {#if svr && !svr.paths_file_found}
+          {#if !svr.paths_file_found}
             Launch SteamVR once first, then install the driver here.
-          {:else if svr?.registered}
-            Installed. <b>Restart SteamVR</b> after installing, reinstalling, or removing.
           {:else}
             Install the driver so the gloves show up as Knuckles controllers in SteamVR. No terminal needed.
+            (Reinstall/Remove live in Settings.)
           {/if}
           {#if svrError}<br /><span class="err">{svrError}</span>{/if}
         </p>
       </div>
       <div class="svr-actions">
         <button class="btn filled state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrInstall)}>
-          {svrBusy ? "Working…" : svr?.registered ? "Reinstall" : "Install"}
+          {svrBusy ? "Working…" : "Install"}
         </button>
-        {#if svr?.registered}
-          <button class="btn text state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrRemove)}>Remove</button>
-        {/if}
       </div>
     </div>
   {/if}

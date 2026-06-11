@@ -249,6 +249,18 @@ pub fn run() {
             server: Mutex::new(ServerProc::new()),
             shm: Mutex::new(None),
         })
+        .setup(|app| {
+            use tauri::Manager;
+            // If the SteamVR driver is registered, refresh the installed copy from
+            // the bundle so an app update auto-updates the driver.
+            if let Ok(src) = app
+                .path()
+                .resolve("steamvr-driver/udcap", tauri::path::BaseDirectory::Resource)
+            {
+                steamvr::sync_if_registered(&src);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             poll,
             server_start,

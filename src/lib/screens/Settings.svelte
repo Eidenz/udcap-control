@@ -1,12 +1,46 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getServerBin, setServerBin, udevStatus, udevInstall, shmVersion, type UdevStatus } from "$lib/api";
+  import {
+    getServerBin,
+    setServerBin,
+    udevStatus,
+    udevInstall,
+    shmVersion,
+    steamvrStatus,
+    steamvrInstall,
+    steamvrRemove,
+    type UdevStatus,
+    type SteamvrStatus,
+  } from "$lib/api";
 
   let bin = $state("");
   let saved = $state(false);
   let udev = $state<UdevStatus | null>(null);
   let installing = $state(false);
   let shmVer = $state(0);
+
+  let svr = $state<SteamvrStatus | null>(null);
+  let svrBusy = $state(false);
+  let svrError = $state<string | null>(null);
+  async function refreshSvr() {
+    try {
+      svr = await steamvrStatus();
+    } catch {
+      svr = null;
+    }
+  }
+  async function svrAction(fn: () => Promise<unknown>) {
+    svrBusy = true;
+    svrError = null;
+    try {
+      await fn();
+      await refreshSvr();
+    } catch (e) {
+      svrError = String(e);
+    } finally {
+      svrBusy = false;
+    }
+  }
 
   onMount(async () => {
     try {
@@ -20,6 +54,7 @@
       shmVer = 0;
     }
     await refreshUdev();
+    await refreshSvr();
   });
   async function refreshUdev() {
     try {
@@ -82,6 +117,34 @@
         {installing ? "Installing…" : udev?.installed ? "Reinstall" : "Install"}
       </button>
     </div>
+  </div>
+
+  <div class="card">
+    <h3>SteamVR driver</h3>
+    <p class="muted">Registers the gloves as Index controllers in SteamVR. Restart SteamVR after any change.</p>
+    <div class="row between">
+      <span class="status">
+        <span class="dot" class:on={svr?.registered} class:warn={svr && !svr.paths_file_found}></span>
+        {#if !svr}
+          Checking…
+        {:else if !svr.paths_file_found}
+          Launch SteamVR once first
+        {:else if svr.registered}
+          Installed
+        {:else}
+          Not installed
+        {/if}
+      </span>
+      <div class="svr-actions">
+        <button class="btn tonal state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrInstall)}>
+          {svrBusy ? "Working…" : svr?.registered ? "Reinstall" : "Install"}
+        </button>
+        {#if svr?.registered}
+          <button class="btn text state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrRemove)}>Remove</button>
+        {/if}
+      </div>
+    </div>
+    {#if svrError}<p class="muted err">{svrError}</p>{/if}
   </div>
 
   <div class="card about">
@@ -161,6 +224,13 @@
     gap: 8px;
     color: var(--on-surface-var);
     font-weight: 600;
+  }
+  .svr-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .err {
+    color: #ff8a8a;
   }
   .about .kv {
     display: flex;
