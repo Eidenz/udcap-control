@@ -94,7 +94,20 @@ export const setAnalog = (
   triggerMax: number,
   gripMin: number,
   gripMax: number,
-) => invoke("set_analog", { hand, triggerFinger, gripFinger, triggerMin, triggerMax, gripMin, gripMax });
+  stickDeadzone: number,
+  trackpadThreshold: number,
+) =>
+  invoke("set_analog", {
+    hand,
+    triggerFinger,
+    gripFinger,
+    triggerMin,
+    triggerMax,
+    gripMin,
+    gripMax,
+    stickDeadzone,
+    trackpadThreshold,
+  });
 
 // Button remap: btn_src[output] = source.
 export const BTN_OUTPUTS = ["A button", "B button", "System / Menu", "Stick click", "Trigger", "Grip"];

@@ -8,7 +8,7 @@ use std::sync::atomic::{fence, AtomicU32, Ordering};
 
 pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
-pub const SHM_VERSION: u32 = 11;
+pub const SHM_VERSION: u32 = 12;
 pub const HAND_COUNT: usize = 2;
 
 const MAX_BEND_RAD: f32 = 1.35;
@@ -80,6 +80,8 @@ struct Hand {
     trigger_max: f32,
     grip_min: f32,
     grip_max: f32,
+    stick_deadzone: f32,
+    trackpad_threshold: f32,
 }
 
 #[repr(C)]
@@ -134,6 +136,8 @@ pub struct HandView {
     pub trigger_max: f32,
     pub grip_min: f32,
     pub grip_max: f32,
+    pub stick_deadzone: f32,
+    pub trackpad_threshold: f32,
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -247,6 +251,8 @@ impl ShmMap {
             trigger_max: h.trigger_max,
             grip_min: h.grip_min,
             grip_max: h.grip_max,
+            stick_deadzone: h.stick_deadzone,
+            trackpad_threshold: h.trackpad_threshold,
         }
     }
 
@@ -325,7 +331,18 @@ impl ShmMap {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn set_analog(&self, hand: usize, tf: u8, gf: u8, tmin: f32, tmax: f32, gmin: f32, gmax: f32) {
+    pub fn set_analog(
+        &self,
+        hand: usize,
+        tf: u8,
+        gf: u8,
+        tmin: f32,
+        tmax: f32,
+        gmin: f32,
+        gmax: f32,
+        deadzone: f32,
+        trackpad: f32,
+    ) {
         if hand >= HAND_COUNT {
             return;
         }
@@ -336,6 +353,8 @@ impl ShmMap {
         h.trigger_max = tmax;
         h.grip_min = gmin;
         h.grip_max = gmax;
+        h.stick_deadzone = deadzone;
+        h.trackpad_threshold = trackpad;
     }
 
     pub fn set_grip(&self, hand: usize, pos: [f32; 3], deg: [f32; 3]) {

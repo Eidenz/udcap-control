@@ -97,6 +97,8 @@ export type HandIO = {
   tMax: number;
   gMin: number;
   gMax: number;
+  deadzone: number; // thumbstick radial deadzone 0..1
+  trackpad: number; // trackpad touch threshold 0..1
 };
 export const defaultHandIo = (): HandIO => ({
   btn: [1, 2, 3, 4, 0, 0],
@@ -106,11 +108,17 @@ export const defaultHandIo = (): HandIO => ({
   tMax: 0.85,
   gMin: 0.6,
   gMax: 0.85,
+  deadzone: 0.1,
+  trackpad: 0.1,
 });
 function loadIo() {
   try {
     const o = JSON.parse(ls?.getItem("udcap.io") ?? "null");
-    if (o && Array.isArray(o.hands) && o.hands.length === 2) return o;
+    if (o && Array.isArray(o.hands) && o.hands.length === 2) {
+      // Fill in fields added by later versions.
+      o.hands = o.hands.map((h: Partial<HandIO>) => ({ ...defaultHandIo(), ...h }));
+      return o;
+    }
   } catch {
     /* fall through */
   }
@@ -121,7 +129,7 @@ export const saveIo = () => ls?.setItem("udcap.io", JSON.stringify(io));
 export function applyHandIo(h: number) {
   const x = io.hands[h];
   setBtnMap(h, x.btn).catch(() => {});
-  setAnalog(h, x.tFinger, x.gFinger, x.tMin, x.tMax, x.gMin, x.gMax).catch(() => {});
+  setAnalog(h, x.tFinger, x.gFinger, x.tMin, x.tMax, x.gMin, x.gMax, x.deadzone, x.trackpad).catch(() => {});
 }
 
 export const saveSpace = () => ls?.setItem(`udcap.space.${appMode.mode}`, JSON.stringify(spaceConfig));

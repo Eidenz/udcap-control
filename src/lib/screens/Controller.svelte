@@ -51,6 +51,8 @@
         io.hands[h].gMax = r2(hi);
       }
     });
+  const editIoNum = (hand: number, key: "deadzone" | "trackpad", v: number) =>
+    commit(hand, (h) => (io.hands[h][key] = r2(v)));
   function reset() {
     io.hands = [defaultHandIo(), defaultHandIo()];
     applyHandIo(0);
@@ -193,8 +195,11 @@
   </div>
 
   <div class="card">
-    <h3>Trigger &amp; grip</h3>
-    <p class="muted">Which finger drives each analog axis, and the curl range that maps to 0–100%.</p>
+    <h3>Trigger, grip &amp; stick</h3>
+    <p class="muted">
+      Which finger drives each analog axis (with its curl range), the thumbstick deadzone, and how much
+      thumb movement counts as a trackpad touch.
+    </p>
     <div class="grid" style="grid-template-columns: repeat({cols.length}, 1fr)">
       {#each cols as hand}
         <div class="col">
@@ -219,6 +224,34 @@
               <DualRange low={io.hands[hand].gMin} high={io.hands[hand].gMax} onchange={(lo, hi) => editRange(hand, "g", lo, hi)} />
               <span class="mm">min{@render numField(hand, "gMin", io.hands[hand].gMin)}</span>
               <span class="mm">max{@render numField(hand, "gMax", io.hands[hand].gMax)}</span>
+            </div>
+          </div>
+          <div class="analog">
+            <div class="arow">
+              <span class="ml">Stick DZ</span>
+              <input
+                class="trange"
+                type="range"
+                min="0"
+                max="0.5"
+                step="0.01"
+                value={io.hands[hand].deadzone}
+                oninput={(e) => editIoNum(hand, "deadzone", parseFloat(e.currentTarget.value))}
+              />
+              <span class="mm">{Math.round(io.hands[hand].deadzone * 100)}%</span>
+            </div>
+            <div class="arow">
+              <span class="ml">Trackpad</span>
+              <input
+                class="trange"
+                type="range"
+                min="0"
+                max="1"
+                step="0.02"
+                value={io.hands[hand].trackpad}
+                oninput={(e) => editIoNum(hand, "trackpad", parseFloat(e.currentTarget.value))}
+              />
+              <span class="mm">{Math.round(io.hands[hand].trackpad * 100)}%</span>
             </div>
           </div>
         </div>
@@ -476,6 +509,10 @@
   .arow .ml {
     width: 56px;
     flex: none;
+  }
+  .trange {
+    flex: 1;
+    min-width: 90px;
   }
   .mm {
     display: flex;

@@ -180,9 +180,21 @@ fn set_analog(
     trigger_max: f32,
     grip_min: f32,
     grip_max: f32,
+    stick_deadzone: f32,
+    trackpad_threshold: f32,
 ) {
     if let Some(m) = state.shm.lock().unwrap().as_ref() {
-        m.set_analog(hand, trigger_finger, grip_finger, trigger_min, trigger_max, grip_min, grip_max);
+        m.set_analog(
+            hand,
+            trigger_finger,
+            grip_finger,
+            trigger_min,
+            trigger_max,
+            grip_min,
+            grip_max,
+            stick_deadzone,
+            trackpad_threshold,
+        );
     }
 }
 
