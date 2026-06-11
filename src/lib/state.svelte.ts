@@ -1,4 +1,14 @@
-import { poll, setServerBin, setOffset, setGrip, setCurlGain, setBtnMap, setAnalog, type Status } from "./api";
+import {
+  poll,
+  setServerBin,
+  setOffset,
+  setGrip,
+  setCurlGain,
+  setCurlRange,
+  setBtnMap,
+  setAnalog,
+  type Status,
+} from "./api";
 
 const ls = typeof localStorage !== "undefined" ? localStorage : null;
 const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));
@@ -90,6 +100,40 @@ export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", valu
 export const curl = $state({
   gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)),
 });
+
+// Per-hand, per-finger curl remap [hand][finger] = [min, max]. Persisted and
+// re-applied on connect (the server resets to identity each start).
+const identityRanges = (): number[][][] => [
+  [
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, 1],
+  ],
+  [
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, 1],
+  ],
+];
+function loadCurlRanges(): number[][][] {
+  try {
+    const o = JSON.parse(ls?.getItem("udcap.curlranges") ?? "null");
+    if (Array.isArray(o) && o.length === 2 && o.every((h) => Array.isArray(h) && h.length === 5)) return o;
+  } catch {
+    /* fall through */
+  }
+  return identityRanges();
+}
+export const curlRanges = $state<number[][][]>(loadCurlRanges());
+export const saveCurlRanges = () => ls?.setItem("udcap.curlranges", JSON.stringify(curlRanges));
+export function applyCurlRange(hand: number, finger: number) {
+  const [mn, mx] = curlRanges[hand][finger];
+  setCurlRange(hand, finger, mn, mx).catch(() => {});
+}
 
 // Per-hand input mapping (button map + analog trigger/grip config).
 export type HandIO = {
@@ -231,6 +275,7 @@ export function applySavedToShm() {
     setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
   }
   setCurlGain(curl.gain).catch(() => {});
+  for (let h = 0; h < 2; h++) for (let f = 0; f < 5; f++) applyCurlRange(h, f);
   applyHandIo(0);
   applyHandIo(1);
 }
