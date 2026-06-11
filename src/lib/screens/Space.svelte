@@ -116,7 +116,10 @@
   <div class="card head">
     <div class="hl">
       <h3>Space orientation</h3>
-      <p class="muted">Align the hands to the trackers, and place VRChat's menu. Saved and applied live.</p>
+      <p class="muted">
+        Align the hands to the trackers{appMode.mode === "monado" ? ", and place VRChat's menu" : ""}. Saved
+        and applied live.
+      </p>
     </div>
     <span class="modechip">{appMode.mode === "steamvr" ? "SteamVR" : "Monado"} offsets</span>
   </div>
@@ -130,14 +133,16 @@
     {@render handCard("right", "Right")}
   </div>
 
-  <div class="section">
-    <span>Grip / menu <em>— position &amp; rotation of VRChat's menu anchor</em></span>
-    <Segmented bind:value={gripConfig.mode} options={["Built-in", "Custom"]} onchange={selectGrip} />
-  </div>
-  <div class="cols">
-    {@render gripCard("left", "Left")}
-    {@render gripCard("right", "Right")}
-  </div>
+  {#if appMode.mode === "monado"}
+    <div class="section">
+      <span>Grip / menu <em>— position &amp; rotation of VRChat's menu anchor</em></span>
+      <Segmented bind:value={gripConfig.mode} options={["Built-in", "Custom"]} onchange={selectGrip} />
+    </div>
+    <div class="cols">
+      {@render gripCard("left", "Left")}
+      {@render gripCard("right", "Right")}
+    </div>
+  {/if}
 
   <div class="card trackers">
     <div class="hl">

@@ -164,9 +164,8 @@
     <div class="qhead">
       <h3>Finger range calibration</h3>
       <p class="muted">
-        Click, then wiggle each finger through its full motion (open ⇄ fully curled) a few times. It records
-        the smoothed min/max each finger reaches and sets the per-finger range — so anatomy-limited fingers
-        (the ring rests slightly curled, the thumb's range is shorter) map cleanly. Saved automatically.
+        Click, then open and close your hand a few times (same open/fist gestures from initial calibration). It records
+        the smoothed min/max each finger reaches and sets the per-finger range.
       </p>
     </div>
     <div class="qbtns">
@@ -174,7 +173,7 @@
         {#if wigglePhase === "ready"}
           Get ready… {wiggleCount}
         {:else if wigglePhase === "recording"}
-          Wiggle your fingers! {wiggleCount}
+          Open and close your hands! {wiggleCount}
         {:else}
           Calibrate finger range
         {/if}

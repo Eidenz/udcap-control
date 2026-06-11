@@ -57,18 +57,8 @@ export const TRACKER_PRESETS: Record<string, Record<AppMode, { left: Offset; rig
       right: { pos: [0, 0, 0], deg: [45, -85, 0] },
     },
     steamvr: {
-      left: { pos: [0.1, 0.02, -0.12], deg: [60, -50, 70] },
-      right: { pos: [-0.1, 0.02, -0.12], deg: [70, 50, -45] },
-    },
-  },
-  Quest: {
-    monado: {
-      left: { pos: [0, 0, 0], deg: [-35, 20, 0] },
-      right: { pos: [0, 0, 0], deg: [-35, -20, 0] },
-    },
-    steamvr: {
-      left: { pos: [0, 0, 0], deg: [-35, 20, 0] },
-      right: { pos: [0, 0, 0], deg: [-35, -20, 0] },
+      left: { pos: [0.1, 0.02, -0.12], deg: [60, -60, 70] },
+      right: { pos: [-0.1, 0.02, -0.12], deg: [60, 60, -70] },
     },
   },
 };
