@@ -39,9 +39,6 @@ pnpm tauri dev
 > My hands positions/rotations are wrong!
 - You can tweak them in the "Space" tab, which is saved on app restart.
 
-> Help, since installing your Monado fork, I see a bunch of extra trackers not connected!
-- This is because I reused my fork which adds hot-plug support to Monado. This is perfectly normal and expected: this is how I managed to add hot-plug. Your devices should still work the same.
-
 ## Monado & SteamVR
 
 The same backend (`udcap-server` + the shared memory) drives both runtimes, only
