@@ -8,6 +8,8 @@ status, runs guided calibration, tunes per-finger curl/splay and the per-hand
 alignment offsets, remaps the controller inputs, pairs gloves to their receivers,
 and installs the SteamVR driver — all over a shared-memory contract (`udcap_shm.h`).
 
+> **AI usage:** This project was developed with AI assistance (Anthropic's Claude), under human direction, testing, and review.
+
 ## Run (user)
 
 If you plan on using Monado, you must install my [custom fork](https://github.com/Eidenz/Monado). This is because I use protocols that are not yet implemented in the official Monado repo. Installation procedures (only a few commands) available there.
