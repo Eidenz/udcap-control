@@ -5,8 +5,8 @@
 A Tauri 2 + Svelte 5 control panel for UDCAP (Udexreal) VR gloves on Linux — for
 both **Monado** and **SteamVR**. It supervises `udcap-server`, shows live glove
 status, runs guided calibration, tunes per-finger curl/splay and the per-hand
-alignment offsets, remaps the controller inputs, and installs the SteamVR driver —
-all over a shared-memory contract (`udcap_shm.h`).
+alignment offsets, remaps the controller inputs, pairs gloves to their receivers,
+and installs the SteamVR driver — all over a shared-memory contract (`udcap_shm.h`).
 
 ## Run (user)
 
@@ -34,8 +34,8 @@ pnpm tauri dev
 > My gloves are not detected in SteamVR!
 - Did you launch udcap-control before SteamVR? If not, try restarting SteamVR.
 
-> My hands position/rotation is wrong!
-- You can tweak it in the "Space" tab, which is saved on app restart.
+> My hands positions/rotations are wrong!
+- You can tweak them in the "Space" tab, which is saved on app restart.
 
 > Help, since installing your Monado fork, I see a bunch of extra trackers not connected!
 - This is because I reused my fork which adds hot-plug support to Monado. This is perfectly normal and expected: this is how I managed to add hot-plug. Your devices should still work the same.
@@ -67,6 +67,8 @@ conventions differ, so they tune separately).
   global **curl strength**, and **finger splay**.
 - **Space** — per-hand position/rotation alignment offsets (**per runtime mode**),
   tracker presets, tracker-serial mapping; live.
+- **Devices** — **pair** gloves to their wireless receivers (guided, one-at-a-time
+  flow) and switch each receiver's **RF channel** to dodge interference.
 - **Settings** — server override, device permissions, **SteamVR driver** management,
   about + credits.
 

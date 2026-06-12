@@ -6,6 +6,7 @@
     udevStatus,
     udevInstall,
     shmVersion,
+    appVersion,
     steamvrStatus,
     steamvrInstall,
     steamvrRemove,
@@ -18,6 +19,7 @@
   let udev = $state<UdevStatus | null>(null);
   let installing = $state(false);
   let shmVer = $state(0);
+  let appVer = $state("");
 
   let svr = $state<SteamvrStatus | null>(null);
   let svrBusy = $state(false);
@@ -52,6 +54,11 @@
       shmVer = await shmVersion();
     } catch {
       shmVer = 0;
+    }
+    try {
+      appVer = await appVersion();
+    } catch {
+      appVer = "";
     }
     await refreshUdev();
     await refreshSvr();
@@ -149,7 +156,7 @@
 
   <div class="card about">
     <h3>About</h3>
-    <div class="kv"><span>Application</span><b>UDCAP Control 0.1.0</b></div>
+    <div class="kv"><span>Application</span><b>UDCAP Control{appVer ? ` ${appVer}` : ""}</b></div>
     <div class="kv"><span>Shared-memory contract</span><b>{shmVer ? `v${shmVer}` : "—"}</b></div>
     <div class="kv"><span>Runtimes</span><b>Monado · SteamVR</b></div>
     <div class="kv"><span>Author</span><b>Eidenz</b></div>
@@ -181,7 +188,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    max-width: 720px;
+    max-width: 880px;
   }
   .muted {
     color: var(--muted);

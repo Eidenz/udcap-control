@@ -5,7 +5,7 @@
 # bump `pkgver` per release; everything else is derived.
 pkgname=udcap-control-bin
 _appname=udcap-control
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Hand tracking + Index-controller inputs for Udexreal (UDCAP) gloves (Monado & SteamVR)"
 arch=('x86_64')

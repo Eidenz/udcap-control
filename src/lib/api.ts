@@ -35,15 +35,27 @@ export interface HandView {
   grip_max: number;
 }
 
+export interface ReceiverView {
+  present: boolean;
+  linked: boolean;
+  hand: number; // 0 left, 1 right, -1 unbound
+  pair_state: number; // PAIR.* (0 idle, 1 searching, 2 success)
+  channel: number; // -1 if unknown
+  serial: string;
+}
+
 export interface ShmView {
   server_pid: number;
   calib_state: number;
   cmd_ack: number;
   cmd_seq: number;
   curl_gain: number;
-  raw_sensors: number[][]; // diagnostic: [hand][12 raw finger sensors]
+  splay_gain: number;
+  receivers: ReceiverView[];
   hands: HandView[];
 }
+
+export const PAIR = { IDLE: 0, SEARCHING: 1, SUCCESS: 2 } as const;
 
 export interface Status {
   server_running: boolean;
@@ -119,7 +131,12 @@ export const testVibration = (hand: number, strength: number, duration: number) 
   invoke("test_vibration", { hand, strength, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");
 export const shmVersion = () => invoke<number>("shm_version");
+export const appVersion = () => invoke<string>("app_version");
 export const sendCommand = (code: number) => invoke<number>("send_command", { code });
+export const pairStart = (receiver: number) => invoke<number>("pair_start", { receiver });
+export const pairStop = (receiver: number) => invoke<number>("pair_stop", { receiver });
+export const setChannel = (receiver: number, channel: number) =>
+  invoke<number>("set_channel", { receiver, channel });
 
 export interface UdevStatus {
   installed: boolean;

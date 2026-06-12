@@ -216,9 +216,39 @@ fn shm_version() -> u32 {
 }
 
 #[tauri::command]
+fn app_version(app: tauri::AppHandle) -> String {
+    use tauri::Manager;
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
 fn send_command(state: State<AppState>, code: u32) -> u32 {
     match state.shm.lock().unwrap().as_ref() {
         Some(m) => m.send_command(code, 0),
+        None => 0,
+    }
+}
+
+#[tauri::command]
+fn pair_start(state: State<AppState>, receiver: i32) -> u32 {
+    match state.shm.lock().unwrap().as_ref() {
+        Some(m) => m.send_command(shm::CMD_PAIR_START, receiver),
+        None => 0,
+    }
+}
+
+#[tauri::command]
+fn pair_stop(state: State<AppState>, receiver: i32) -> u32 {
+    match state.shm.lock().unwrap().as_ref() {
+        Some(m) => m.send_command(shm::CMD_PAIR_STOP, receiver),
+        None => 0,
+    }
+}
+
+#[tauri::command]
+fn set_channel(state: State<AppState>, receiver: i32, channel: i32) -> u32 {
+    match state.shm.lock().unwrap().as_ref() {
+        Some(m) => m.send_command2(shm::CMD_SET_CHANNEL, receiver, channel),
         None => 0,
     }
 }
@@ -288,7 +318,11 @@ pub fn run() {
             test_vibration,
             get_server_bin,
             shm_version,
+            app_version,
             send_command,
+            pair_start,
+            pair_stop,
+            set_channel,
             udev_status,
             udev_install,
             steamvr_status,

@@ -7,10 +7,11 @@
   import FingersScreen from "$lib/screens/Fingers.svelte";
   import SpaceScreen from "$lib/screens/Space.svelte";
   import ControllerScreen from "$lib/screens/Controller.svelte";
+  import DevicesScreen from "$lib/screens/Devices.svelte";
   import SettingsScreen from "$lib/screens/Settings.svelte";
   import WindowControls from "$lib/components/WindowControls.svelte";
 
-  type Tab = "status" | "controller" | "calibration" | "fingers" | "space" | "settings";
+  type Tab = "status" | "controller" | "calibration" | "fingers" | "space" | "devices" | "settings";
   let tab = $state<Tab>("status");
   let busy = $state(false);
 
@@ -44,6 +45,7 @@
     { id: "calibration", label: "Calibrate" },
     { id: "fingers", label: "Fingers" },
     { id: "space", label: "Space" },
+    { id: "devices", label: "Devices" },
     { id: "settings", label: "Settings" },
   ] as const;
 </script>
@@ -81,6 +83,13 @@
               ><path
                 fill="currentColor"
                 d="M3 17v2h6v-2H3M3 5v2h10V5H3m10 16v-2h8v-2h-8v-2h-2v6h2M7 9v2H3v2h4v2h2V9H7m14 4v-2H11v2h10m-6-4h2V7h4V5h-4V3h-2v6Z"
+              /></svg
+            >
+          {:else if item.id === "devices"}
+            <svg viewBox="0 0 24 24" width="24" height="24"
+              ><path
+                fill="currentColor"
+                d="M15 7v4h1v2h-3V5h2l-3-4-3 4h2v8H8v-2.07c.7-.37 1.2-1.08 1.2-1.93 0-1.21-.99-2.2-2.2-2.2S5 7.79 5 9c0 .85.5 1.56 1.2 1.93V13c0 1.11.89 2 2 2h3v3.05c-.71.37-1.2 1.07-1.2 1.95a2.2 2.2 0 0 0 4.4 0c0-.88-.49-1.58-1.2-1.95V15h3c1.11 0 2-.89 2-2v-2h1V7h-2Z"
               /></svg
             >
           {:else if item.id === "settings"}
@@ -145,6 +154,8 @@
         <CalibrationScreen />
       {:else if tab === "fingers"}
         <FingersScreen />
+      {:else if tab === "devices"}
+        <DevicesScreen />
       {:else if tab === "settings"}
         <SettingsScreen />
       {:else}

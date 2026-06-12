@@ -10,6 +10,12 @@ pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
 pub const SHM_VERSION: u32 = 12;
 pub const HAND_COUNT: usize = 2;
+pub const RECEIVER_MAX: usize = 4;
+
+// Receiver-targeted command codes (see enum udcap_cmd in udcap_shm.h).
+pub const CMD_PAIR_START: u32 = 8;
+pub const CMD_PAIR_STOP: u32 = 9;
+pub const CMD_SET_CHANNEL: u32 = 10;
 
 const MAX_BEND_RAD: f32 = 1.35;
 
@@ -85,6 +91,17 @@ struct Hand {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+struct Receiver {
+    present: u32,
+    linked: u32,
+    hand: u32,
+    pair_state: u32,
+    channel: u32,
+    serial: [u8; 24],
+}
+
+#[repr(C)]
 struct Shm {
     magic: u32,
     version: u32,
@@ -98,7 +115,9 @@ struct Shm {
     calib_state: u32,
     curl_gain: f32,
     splay_gain: f32,
-    raw_sensors: [[f32; 12]; 2], // diagnostic
+    cmd_arg2: i32,
+    receiver_count: u32,
+    receivers: [Receiver; RECEIVER_MAX],
 }
 
 /* ---- Serializable views sent to the frontend ---- */
@@ -142,6 +161,16 @@ pub struct HandView {
 }
 
 #[derive(Serialize, Clone, Default)]
+pub struct ReceiverView {
+    pub present: bool,
+    pub linked: bool,
+    pub hand: i32,       // 0/1 once bound, -1 while unbound
+    pub pair_state: u32, // enum udcap_pair_state (0 idle, 1 searching, 2 success)
+    pub channel: i32,    // -1 if unknown
+    pub serial: String,
+}
+
+#[derive(Serialize, Clone, Default)]
 pub struct ShmView {
     pub server_pid: u32,
     pub calib_state: u32,
@@ -149,7 +178,7 @@ pub struct ShmView {
     pub cmd_seq: u32,
     pub curl_gain: f32,
     pub splay_gain: f32,
-    pub raw_sensors: [[f32; 12]; 2], // diagnostic
+    pub receivers: Vec<ReceiverView>,
     pub hands: Vec<HandView>,
 }
 
@@ -272,6 +301,20 @@ impl ShmMap {
                     .unwrap_or(false)
         }
         let g = unsafe { &*self.ptr };
+        let nrecv = (g.receiver_count as usize).min(RECEIVER_MAX);
+        let receivers = (0..nrecv)
+            .map(|i| {
+                let r = &g.receivers[i];
+                ReceiverView {
+                    present: r.present != 0,
+                    linked: r.linked != 0,
+                    hand: if r.hand == 0 || r.hand == 1 { r.hand as i32 } else { -1 },
+                    pair_state: r.pair_state,
+                    channel: if r.channel == 0xFFFF_FFFF { -1 } else { r.channel as i32 },
+                    serial: cstr(&r.serial),
+                }
+            })
+            .collect();
         ShmView {
             server_pid: if pid_alive(g.server_pid) { g.server_pid } else { 0 },
             calib_state: g.calib_state,
@@ -279,7 +322,7 @@ impl ShmMap {
             cmd_seq: g.cmd_seq,
             curl_gain: g.curl_gain,
             splay_gain: g.splay_gain,
-            raw_sensors: g.raw_sensors,
+            receivers,
             hands: (0..HAND_COUNT).map(|i| self.read_hand(i)).collect(),
         }
     }
@@ -382,9 +425,15 @@ impl ShmMap {
 
     /// Issue a command to the server (bumps cmd_seq). Returns the new seq.
     pub fn send_command(&self, code: u32, arg: i32) -> u32 {
+        self.send_command2(code, arg, 0)
+    }
+
+    /// Issue a command with a secondary argument (e.g. channel value).
+    pub fn send_command2(&self, code: u32, arg: i32, arg2: i32) -> u32 {
         let g = unsafe { &mut *self.ptr };
         g.cmd_code = code;
         g.cmd_arg = arg;
+        g.cmd_arg2 = arg2;
         let seq_atomic = unsafe { &*(&g.cmd_seq as *const u32 as *const AtomicU32) };
         seq_atomic.fetch_add(1, Ordering::Release) + 1
     }
