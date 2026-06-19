@@ -283,6 +283,23 @@ fn steamvr_remove() -> Result<(), String> {
     steamvr::remove()
 }
 
+/// Write the bundled Envision profile (the single source of truth in
+/// extras/envision/) to the user's Downloads folder. Returns the full path so the
+/// UI can show it / reveal it.
+#[tauri::command]
+fn save_envision_profile(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    const PROFILE: &str = include_str!("../../extras/envision/udcap-monado.json");
+    let dir = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().home_dir())
+        .map_err(|e| e.to_string())?;
+    let path = dir.join("udcap-monado.json");
+    std::fs::write(&path, PROFILE).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -328,6 +345,7 @@ pub fn run() {
             steamvr_status,
             steamvr_install,
             steamvr_remove,
+            save_envision_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

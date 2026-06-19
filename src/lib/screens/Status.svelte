@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app, appMode, setMode } from "$lib/state.svelte";
+  import { app, appMode, setMode, monadoNotice, dismissMonadoNotice, openMonadoGuide } from "$lib/state.svelte";
   import {
     udevStatus,
     udevInstall,
@@ -133,6 +133,22 @@
     />
   </div>
 
+  {#if appMode.mode === "monado" && !monadoNotice.dismissed}
+    <div class="card setup monado">
+      <div>
+        <h3>Monado needs our fork</h3>
+        <p class="muted">
+          Stock Monado doesn't include the UDCAP driver, so your hands won't appear in OpenXR until you run a
+          Monado built with it. (This guide also lives in Settings.)
+        </p>
+      </div>
+      <div class="svr-actions">
+        <button class="btn text state-layer" onclick={dismissMonadoNotice}>Dismiss</button>
+        <button class="btn tonal state-layer" onclick={openMonadoGuide}>Show me how</button>
+      </div>
+    </div>
+  {/if}
+
   {#if appMode.mode === "steamvr" && svr && !svr.registered}
     <div class="card setup steamvr">
       <div>
@@ -229,6 +245,9 @@
   }
   .setup p {
     margin: 4px 0 0;
+  }
+  .setup.monado {
+    border-color: var(--warn);
   }
   .mode {
     display: flex;

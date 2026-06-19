@@ -198,6 +198,20 @@ export function setMode(m: AppMode) {
   applyOffsetNow();
 }
 
+// Monado fork notice: a dismissible reminder on Status (the guide always lives in
+// Settings). `dismissed` persists; `guideOpen` drives the shared MonadoGuide modal,
+// which is mounted once at the page root and opened from either screen.
+export const monadoNotice = $state({
+  dismissed: ls?.getItem("udcap.monadoDismissed") === "1",
+  guideOpen: false,
+});
+export function dismissMonadoNotice() {
+  monadoNotice.dismissed = true;
+  ls?.setItem("udcap.monadoDismissed", "1");
+}
+export const openMonadoGuide = () => (monadoNotice.guideOpen = true);
+export const closeMonadoGuide = () => (monadoNotice.guideOpen = false);
+
 // Calibration audio cues. Driven globally off calib_state so they play whoever
 // triggered calibration (GUI button *or* the glove menu button), on any tab.
 export const calibSound = $state({ on: ls?.getItem("udcap.calibSound") !== "0" });

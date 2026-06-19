@@ -13,6 +13,7 @@
     type UdevStatus,
     type SteamvrStatus,
   } from "$lib/api";
+  import { openMonadoGuide } from "$lib/state.svelte";
 
   let bin = $state("");
   let saved = $state(false);
@@ -123,6 +124,18 @@
       <button class="btn tonal state-layer" disabled={installing} onclick={installUdev}>
         {installing ? "Installing…" : udev?.installed ? "Reinstall" : "Install"}
       </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Monado runtime</h3>
+    <p class="muted">
+      Monado needs our fork (it compiles the UDCAP driver in) — stock Monado won't pick up the gloves. The
+      setup guide walks through Monadeck, Envision, or a manual build.
+    </p>
+    <div class="row between">
+      <span class="status"><span class="dot"></span>Requires the UDCAP Monado fork</span>
+      <button class="btn tonal state-layer" onclick={openMonadoGuide}>Setup guide</button>
     </div>
   </div>
 

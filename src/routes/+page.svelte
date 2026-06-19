@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { app, config, startPolling, stopPolling, unlockAudio } from "$lib/state.svelte";
+  import { app, config, startPolling, stopPolling, unlockAudio, monadoNotice, closeMonadoGuide } from "$lib/state.svelte";
+  import MonadoGuide from "$lib/components/MonadoGuide.svelte";
   import { serverStart, serverStop } from "$lib/api";
   import StatusScreen from "$lib/screens/Status.svelte";
   import CalibrationScreen from "$lib/screens/Calibration.svelte";
@@ -164,6 +165,8 @@
     </section>
   </div>
 </div>
+
+<MonadoGuide open={monadoNotice.guideOpen} onclose={closeMonadoGuide} />
 
 <style>
   .app {

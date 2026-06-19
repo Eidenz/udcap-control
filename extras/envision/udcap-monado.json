@@ -1,0 +1,20 @@
+{
+    "uuid": "@UUID@",
+    "name": "UDCAP Gloves (Monado fork)",
+    "xrservice_type": "Monado",
+    "xrservice_path": "@DATADIR@/@UUID@/monado",
+    "xrservice_repo": "https://github.com/Eidenz/Monado",
+    "xrservice_branch": "main",
+    "xrservice_cmake_flags": { "XRT_BUILD_DRIVER_UDCAP": "ON" },
+    "ovr_comp": { "mod_type": "Opencomposite", "path": "@DATADIR@/@UUID@/opencomposite", "repo": null, "branch": null },
+    "features": {
+        "libsurvive": { "feature_type": "Libsurvive", "enabled": false, "path": "@DATADIR@/@UUID@/libsurvive", "repo": null, "branch": null },
+        "basalt": { "feature_type": "Basalt", "enabled": false, "path": null, "repo": null, "branch": null },
+        "mercury_enabled": false
+    },
+    "environment": {},
+    "prefix": "@DATADIR@/prefixes/@UUID@",
+    "pull_on_build": true,
+    "editable": true,
+    "can_be_built": true
+}

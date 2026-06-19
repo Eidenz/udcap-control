@@ -153,3 +153,4 @@ export interface SteamvrStatus {
 export const steamvrStatus = () => invoke<SteamvrStatus>("steamvr_status");
 export const steamvrInstall = () => invoke("steamvr_install");
 export const steamvrRemove = () => invoke("steamvr_remove");
+export const saveEnvisionProfile = () => invoke<string>("save_envision_profile");
