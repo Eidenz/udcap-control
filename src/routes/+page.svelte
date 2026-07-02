@@ -10,9 +10,11 @@
   import ControllerScreen from "$lib/screens/Controller.svelte";
   import DevicesScreen from "$lib/screens/Devices.svelte";
   import SettingsScreen from "$lib/screens/Settings.svelte";
+  import DebugScreen from "$lib/screens/Debug.svelte";
   import WindowControls from "$lib/components/WindowControls.svelte";
 
-  type Tab = "status" | "controller" | "calibration" | "fingers" | "space" | "devices" | "settings";
+  // "debug" is a hidden screen — reached from Settings, not the nav rail.
+  type Tab = "status" | "controller" | "calibration" | "fingers" | "space" | "devices" | "settings" | "debug";
   let tab = $state<Tab>("status");
   let busy = $state(false);
 
@@ -57,7 +59,7 @@
     {#each nav as item}
       <button
         class="rail-item state-layer"
-        class:active={tab === item.id}
+        class:active={tab === item.id || (item.id === "settings" && tab === "debug")}
         onclick={() => (tab = item.id)}
       >
         <span class="rail-icon">
@@ -158,7 +160,9 @@
       {:else if tab === "devices"}
         <DevicesScreen />
       {:else if tab === "settings"}
-        <SettingsScreen />
+        <SettingsScreen onDebug={() => (tab = "debug")} />
+      {:else if tab === "debug"}
+        <DebugScreen onBack={() => (tab = "settings")} />
       {:else}
         <SpaceScreen />
       {/if}

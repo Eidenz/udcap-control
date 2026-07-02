@@ -33,6 +33,14 @@ export interface HandView {
   trigger_max: number;
   grip_min: number;
   grip_max: number;
+  stick_deadzone: number;
+  trackpad_threshold: number;
+  // Diagnostics: raw calibration references for the 12 finger sensor channels
+  // (f4..f15). span = fist - open. Channels 4/7/10 are splay; the rest flexion.
+  cali_open: number[];
+  cali_fist: number[];
+  cali_live: number[];
+  cali_valid: boolean;
 }
 
 export interface ReceiverView {
@@ -154,3 +162,5 @@ export const steamvrStatus = () => invoke<SteamvrStatus>("steamvr_status");
 export const steamvrInstall = () => invoke("steamvr_install");
 export const steamvrRemove = () => invoke("steamvr_remove");
 export const saveEnvisionProfile = () => invoke<string>("save_envision_profile");
+export const saveDebugReport = (filename: string, contents: string) =>
+  invoke<string>("save_debug_report", { filename, contents });

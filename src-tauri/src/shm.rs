@@ -8,7 +8,7 @@ use std::sync::atomic::{fence, AtomicU32, Ordering};
 
 pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
-pub const SHM_VERSION: u32 = 12;
+pub const SHM_VERSION: u32 = 13;
 pub const HAND_COUNT: usize = 2;
 pub const RECEIVER_MAX: usize = 4;
 
@@ -88,6 +88,13 @@ struct Hand {
     grip_max: f32,
     stick_deadzone: f32,
     trackpad_threshold: f32,
+    // Diagnostics (v13): raw calibration internals for the 12 finger sensor
+    // channels (f4..f15). See udcap_shm.h. Written by the server outside the
+    // seqlock; used only by the control-app debug page.
+    cali_open: [f32; 12],
+    cali_fist: [f32; 12],
+    cali_live: [f32; 12],
+    cali_valid: u32,
 }
 
 #[repr(C)]
@@ -158,6 +165,13 @@ pub struct HandView {
     pub grip_max: f32,
     pub stick_deadzone: f32,
     pub trackpad_threshold: f32,
+    // Diagnostics: per raw-sensor-channel calibration references (12 channels,
+    // f4..f15). span = fist - open reveals joints that barely move. Channels
+    // 4/7/10 are splay (index/ring/little); the rest are flexion.
+    pub cali_open: [f32; 12],
+    pub cali_fist: [f32; 12],
+    pub cali_live: [f32; 12],
+    pub cali_valid: bool,
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -287,6 +301,10 @@ impl ShmMap {
             grip_max: h.grip_max,
             stick_deadzone: h.stick_deadzone,
             trackpad_threshold: h.trackpad_threshold,
+            cali_open: h.cali_open,
+            cali_fist: h.cali_fist,
+            cali_live: h.cali_live,
+            cali_valid: h.cali_valid != 0,
         }
     }
 

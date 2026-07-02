@@ -1,6 +1,6 @@
 [package]
 name = "udcap-control"
-version = "0.3.0"
+version = "0.4.0"
 description = "UDCAP gloves app for Linux"
 authors = ["Eidenz"]
 edition = "2021"

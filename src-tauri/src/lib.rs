@@ -300,6 +300,27 @@ fn save_envision_profile(app: tauri::AppHandle) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// Write a debug/diagnostics report (JSON produced by the frontend) to the
+/// user's Downloads folder. Returns the full path so the UI can reveal it.
+#[tauri::command]
+fn save_debug_report(app: tauri::AppHandle, filename: String, contents: String) -> Result<String, String> {
+    use tauri::Manager;
+    // Guard against path traversal: keep only the file name component.
+    let name = std::path::Path::new(&filename)
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "udcap-debug.json".to_string());
+    let dir = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().home_dir())
+        .map_err(|e| e.to_string())?;
+    let path = dir.join(name);
+    std::fs::write(&path, contents).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -346,6 +367,7 @@ pub fn run() {
             steamvr_install,
             steamvr_remove,
             save_envision_profile,
+            save_debug_report,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

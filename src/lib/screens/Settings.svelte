@@ -15,6 +15,8 @@
   } from "$lib/api";
   import { openMonadoGuide } from "$lib/state.svelte";
 
+  let { onDebug }: { onDebug: () => void } = $props();
+
   let bin = $state("");
   let saved = $state(false);
   let udev = $state<UdevStatus | null>(null);
@@ -165,6 +167,18 @@
       </div>
     </div>
     {#if svrError}<p class="muted err">{svrError}</p>{/if}
+  </div>
+
+  <div class="card">
+    <h3>Diagnostics</h3>
+    <p class="muted">
+      Having tracking trouble, fingers that won't move, or a calibration that feels off? Open the debug
+      page to inspect live readings and calibration quality, run a guided test, and export a report to share.
+    </p>
+    <div class="row between">
+      <span class="status"><span class="dot"></span>Debug data &amp; exportable report</span>
+      <button class="btn tonal state-layer" onclick={onDebug}>Open debug page</button>
+    </div>
   </div>
 
   <div class="card about">
