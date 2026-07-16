@@ -223,7 +223,7 @@
       link_name: LINK_NAMES[h.link] ?? String(h.link),
       calibrated: h.calibrated,
       cali_valid: h.cali_valid,
-      battery: h.battery,
+      battery_level: h.battery, // 0..5 (raw level, ~20% each), not a percentage
       fps: r1(h.fps),
       fw: h.fw,
       glove_serial: h.glove_serial,
@@ -333,7 +333,7 @@
         {:else}
           <div class="kvs tight">
             <div class="kv"><span>Calibrated</span><b>{h.calibrated ? "yes" : "no"}</b></div>
-            <div class="kv"><span>Battery</span><b>{h.battery}%</b></div>
+            <div class="kv"><span>Battery</span><b>{h.battery ? `${h.battery * 20}% (level ${h.battery}/5)` : "—"}</b></div>
             <div class="kv"><span>Packet rate</span><b>{r1(h.fps)}/s</b></div>
             <div class="kv"><span>Firmware</span><b>{h.fw || "—"}</b></div>
             <div class="kv"><span>Glove SN</span><b class="mono">{h.glove_serial || "—"}</b></div>
