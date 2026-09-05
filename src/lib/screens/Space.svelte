@@ -10,6 +10,12 @@
     BUILTIN_GRIP,
     saveSpace,
     saveGrip,
+    profiles,
+    activeProfile,
+    selectProfile,
+    createProfile,
+    renameProfile,
+    deleteProfile,
   } from "$lib/state.svelte";
   import { setOffset, setGrip } from "$lib/api";
   import Select from "$lib/components/Select.svelte";
@@ -70,6 +76,55 @@
     }
     saveGrip();
   }
+
+  // Alignment profiles (one per game): pick, create, rename, delete.
+  let editing = $state<"rename" | "new" | null>(null);
+  let draft = $state("");
+  let nameInput = $state<HTMLInputElement | undefined>();
+  let confirmDelete = $state(false);
+  let confirmTimer: ReturnType<typeof setTimeout> | undefined;
+  const pickProfile = (name: string) => {
+    const p = profiles.list.find((x) => x.name === name);
+    if (p) selectProfile(p.id);
+  };
+  function focusName() {
+    setTimeout(() => {
+      nameInput?.focus();
+      nameInput?.select();
+    }, 0);
+  }
+  function startRename() {
+    editing = "rename";
+    draft = activeProfile().name;
+    focusName();
+  }
+  function startNew() {
+    editing = "new";
+    draft = "";
+    focusName();
+  }
+  function commitName() {
+    const n = draft.trim();
+    if (editing === "new") createProfile(n || "New game");
+    else if (editing === "rename" && n) renameProfile(activeProfile().id, n);
+    editing = null;
+  }
+  const cancelName = () => (editing = null);
+  function onNameKey(e: KeyboardEvent) {
+    if (e.key === "Enter") commitName();
+    if (e.key === "Escape") cancelName();
+  }
+  // Two-step delete: the first click arms "Really delete?" for a few seconds.
+  function remove() {
+    clearTimeout(confirmTimer);
+    if (!confirmDelete) {
+      confirmDelete = true;
+      confirmTimer = setTimeout(() => (confirmDelete = false), 3000);
+      return;
+    }
+    confirmDelete = false;
+    deleteProfile(activeProfile().id);
+  }
 </script>
 
 {#snippet field(hand: Hand, kind: Kind, axis: number, step: number)}
@@ -122,6 +177,44 @@
       </p>
     </div>
     <span class="modechip">{appMode.mode === "steamvr" ? "SteamVR" : "Monado"} offsets</span>
+  </div>
+
+  <div class="card profile">
+    <div class="hl">
+      <h3>Alignment profile</h3>
+      <p class="muted">
+        One per game. A profile keeps the hand alignment for both runtimes and the grip/menu anchor.
+        Switching applies live; a new profile starts as a copy of the current one.
+      </p>
+    </div>
+    <div class="pctl">
+      {#if editing}
+        <input
+          class="text name"
+          bind:this={nameInput}
+          bind:value={draft}
+          placeholder={editing === "new" ? "Game name" : "Profile name"}
+          onkeydown={onNameKey}
+        />
+        <button class="btn tonal state-layer" onclick={commitName}>{editing === "new" ? "Create" : "Save"}</button>
+        <button class="btn text state-layer" onclick={cancelName}>Cancel</button>
+      {:else}
+        <div class="psel">
+          <Select value={activeProfile().name} options={profiles.list.map((p) => p.name)} onchange={pickProfile} />
+        </div>
+        <button class="btn text state-layer" onclick={startRename}>Rename</button>
+        <button class="btn text state-layer" onclick={startNew}>New</button>
+        <button
+          class="btn text state-layer danger"
+          class:armed={confirmDelete}
+          disabled={profiles.list.length <= 1}
+          title={profiles.list.length <= 1 ? "The last profile can't be deleted" : ""}
+          onclick={remove}
+        >
+          {confirmDelete ? "Really delete?" : "Delete"}
+        </button>
+      {/if}
+    </div>
   </div>
 
   <div class="section">
@@ -276,6 +369,30 @@
   }
   input.text:focus {
     border-color: var(--primary);
+  }
+  .profile .pctl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .psel {
+    flex: 1;
+    min-width: 200px;
+    max-width: 320px;
+  }
+  input.text.name {
+    flex: 1;
+    min-width: 200px;
+    max-width: 320px;
+    font-family: inherit;
+  }
+  .btn.danger:not(:disabled) {
+    color: var(--error);
+  }
+  .btn.danger.armed {
+    font-weight: 700;
   }
   .trackers .trow {
     display: flex;

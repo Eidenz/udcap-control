@@ -70,7 +70,9 @@ conventions differ, so they tune separately).
   or the glove **power button**, with audio cues.
 - **Fingers** — per-finger **curl-range tuning** (live reading + draggable handles),
   global **curl strength**, and **finger splay**.
-- **Space** — per-hand position/rotation alignment offsets (**per runtime mode**),
+- **Space** — named **alignment profiles**, one per game (create / rename / delete,
+  switch live; each holds both runtimes' offsets and the grip anchor), with
+  per-hand position/rotation alignment offsets (**per runtime mode**),
   tracker presets, tracker-serial mapping; live.
 - **Devices** — **pair** gloves to their wireless receivers (guided, one-at-a-time
   flow) and switch each receiver's **RF channel** to dodge interference.

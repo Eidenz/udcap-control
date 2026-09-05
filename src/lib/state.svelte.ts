@@ -77,18 +77,129 @@ export const SPLAY_GAIN_MAX = 0.5;
 export const appMode = $state<{ mode: AppMode }>({
   mode: (ls?.getItem("udcap.mode") as AppMode) === "steamvr" ? "steamvr" : "monado",
 });
-function loadSpaceFor(mode: AppMode) {
-  const fresh = loadJSON(`udcap.space.${mode}`, null);
+// --- Alignment profiles (one per game) --------------------------------------
+// Games disagree about where the hands and the grip/menu anchor should sit, so
+// everything on the Space screen lives in named profiles. A profile keeps the
+// hand alignment for BOTH runtimes (Monado and SteamVR offsets differ) plus the
+// grip/menu anchor. `spaceConfig` / `gripConfig` remain the live working copies
+// the Space screen edits; saveSpace / saveGrip write them back into the active
+// profile. Switching profiles swaps the live copies and pushes them to the shm,
+// so it takes effect in-game immediately.
+export type SpaceSet = { preset: string; offsets: { left: Offset; right: Offset } };
+type GripOffset = { pos: number[]; rot: number[] };
+export type GripSet = { mode: string; values: { left: GripOffset; right: GripOffset } };
+export type AlignmentProfile = { id: string; name: string; space: Record<AppMode, SpaceSet>; grip: GripSet };
+
+const defaultSpace = (mode: AppMode): SpaceSet => ({
+  preset: "Vive Tracker 3.0",
+  offsets: clone(presetOffsets("Vive Tracker 3.0", mode)),
+});
+const defaultGrip = (): GripSet => ({ mode: "Built-in", values: clone(BUILTIN_GRIP) });
+const newId = () => Math.random().toString(36).slice(2, 10);
+
+// Pre-profile storage: one space set per runtime (+ the pre-toggle single key)
+// and one grip set. Read once, to seed the first profile.
+function loadLegacySpace(mode: AppMode): SpaceSet {
+  const fresh = loadJSON<SpaceSet | null>(`udcap.space.${mode}`, null);
   if (fresh) return fresh;
   if (mode === "monado") {
-    const legacy = loadJSON("udcap.space", null); // migrate pre-toggle config
+    const legacy = loadJSON<SpaceSet | null>("udcap.space", null);
     if (legacy) return legacy;
   }
-  return { preset: "Vive Tracker 3.0", offsets: clone(presetOffsets("Vive Tracker 3.0", mode)) };
+  return defaultSpace(mode);
 }
+function loadProfiles(): { active: string; list: AlignmentProfile[] } {
+  try {
+    const o = JSON.parse(ls?.getItem("udcap.profiles") ?? "null");
+    if (o && Array.isArray(o.list) && o.list.length > 0) {
+      const list: AlignmentProfile[] = o.list.map((p: Partial<AlignmentProfile>) => ({
+        id: p.id ?? newId(),
+        name: p.name ?? "Profile",
+        space: {
+          monado: p.space?.monado ?? defaultSpace("monado"),
+          steamvr: p.space?.steamvr ?? defaultSpace("steamvr"),
+        },
+        grip: p.grip ?? defaultGrip(),
+      }));
+      const active = list.some((p) => p.id === o.active) ? o.active : list[0].id;
+      return { active, list };
+    }
+  } catch {
+    /* fall through */
+  }
+  // First run with profiles: wrap whatever was tuned before into "Default".
+  const first: AlignmentProfile = {
+    id: newId(),
+    name: "Default",
+    space: { monado: loadLegacySpace("monado"), steamvr: loadLegacySpace("steamvr") },
+    grip: loadJSON<GripSet>("udcap.grip", defaultGrip()),
+  };
+  return { active: first.id, list: [first] };
+}
+export const profiles = $state(loadProfiles());
+export const saveProfiles = () => ls?.setItem("udcap.profiles", JSON.stringify(profiles));
+export const activeProfile = (): AlignmentProfile =>
+  profiles.list.find((p) => p.id === profiles.active) ?? profiles.list[0];
 
-export const spaceConfig = $state(loadSpaceFor(appMode.mode));
-export const gripConfig = $state(loadJSON("udcap.grip", { mode: "Built-in", values: clone(BUILTIN_GRIP) }));
+export const spaceConfig = $state<SpaceSet>(clone(activeProfile().space[appMode.mode]));
+export const gripConfig = $state<GripSet>(clone(activeProfile().grip));
+
+// Replace the live copies with a profile's values (for the current runtime).
+function loadLive(p: AlignmentProfile) {
+  const s = p.space[appMode.mode];
+  spaceConfig.preset = s.preset;
+  spaceConfig.offsets = clone(s.offsets);
+  gripConfig.mode = p.grip.mode;
+  gripConfig.values = clone(p.grip.values);
+}
+function uniqueName(name: string, selfId?: string) {
+  const taken = new Set(profiles.list.filter((p) => p.id !== selfId).map((p) => p.name));
+  const base = name.trim() || "Profile";
+  let n = base;
+  for (let k = 2; taken.has(n); k++) n = `${base} (${k})`;
+  return n;
+}
+export function selectProfile(id: string) {
+  if (id === profiles.active || !profiles.list.some((p) => p.id === id)) return;
+  saveSpace();
+  saveGrip();
+  profiles.active = id;
+  loadLive(activeProfile());
+  applyOffsetNow();
+  applyGripNow();
+  saveProfiles();
+}
+// A new profile starts as a copy of the current tuning, so a new game begins
+// from what already works rather than from the factory preset.
+export function createProfile(name: string) {
+  const src = activeProfile();
+  const p: AlignmentProfile = { id: newId(), name: uniqueName(name), space: clone(src.space), grip: clone(src.grip) };
+  p.space[appMode.mode] = clone(spaceConfig);
+  p.grip = clone(gripConfig);
+  profiles.list.push(p);
+  profiles.active = p.id; // live copies already match; nothing to re-apply
+  saveProfiles();
+}
+export function renameProfile(id: string, name: string) {
+  const p = profiles.list.find((x) => x.id === id);
+  const n = name.trim();
+  if (!p || !n || n === p.name) return;
+  p.name = uniqueName(n, id);
+  saveProfiles();
+}
+export function deleteProfile(id: string) {
+  if (profiles.list.length <= 1) return;
+  const i = profiles.list.findIndex((p) => p.id === id);
+  if (i < 0) return;
+  profiles.list.splice(i, 1);
+  if (profiles.active === id) {
+    profiles.active = profiles.list[Math.max(0, i - 1)].id;
+    loadLive(activeProfile());
+    applyOffsetNow();
+    applyGripNow();
+  }
+  saveProfiles();
+}
 export const curl = $state({
   gain: Math.min(CURL_GAIN_MAX, Number(ls?.getItem("udcap.gain") ?? CURL_GAIN_MAX)),
 });
@@ -177,8 +288,15 @@ export function applyHandIo(h: number) {
   setAnalog(h, x.tFinger, x.gFinger, x.tMin, x.tMax, x.gMin, x.gMax, x.deadzone, x.trackpad).catch(() => {});
 }
 
-export const saveSpace = () => ls?.setItem(`udcap.space.${appMode.mode}`, JSON.stringify(spaceConfig));
-export const saveGrip = () => ls?.setItem("udcap.grip", JSON.stringify(gripConfig));
+// Persist the live copies into the active profile.
+export function saveSpace() {
+  activeProfile().space[appMode.mode] = clone(spaceConfig);
+  saveProfiles();
+}
+export function saveGrip() {
+  activeProfile().grip = clone(gripConfig);
+  saveProfiles();
+}
 export const saveCurlGain = () => ls?.setItem("udcap.gain", String(curl.gain));
 
 // Write the active mode's offsets to the shm (both hands).
@@ -186,15 +304,20 @@ export function applyOffsetNow() {
   setOffset(0, spaceConfig.offsets.left.pos, spaceConfig.offsets.left.deg).catch(() => {});
   setOffset(1, spaceConfig.offsets.right.pos, spaceConfig.offsets.right.deg).catch(() => {});
 }
-// Switch runtime mode: persist the mode we leave, load + apply the new mode's offsets.
+// Write the grip/menu anchor to the shm (both hands). Always, not only for
+// "Custom": switching from a custom profile back to a built-in one must reset it.
+export function applyGripNow() {
+  setGrip(0, gripConfig.values.left.pos, gripConfig.values.left.rot).catch(() => {});
+  setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
+}
+// Switch runtime mode: stash the leaving runtime's set into the profile, then
+// load + apply the profile's set for the new runtime.
 export function setMode(m: AppMode) {
   if (m === appMode.mode) return;
   saveSpace();
   appMode.mode = m;
   ls?.setItem("udcap.mode", m);
-  const next = loadSpaceFor(m);
-  spaceConfig.preset = next.preset;
-  spaceConfig.offsets = next.offsets;
+  loadLive(activeProfile());
   applyOffsetNow();
 }
 
@@ -297,10 +420,7 @@ function playCalib(name: string) {
 // Push the active mode's saved alignment to the shm on connect.
 export function applySavedToShm() {
   applyOffsetNow();
-  if (gripConfig.mode === "Custom") {
-    setGrip(0, gripConfig.values.left.pos, gripConfig.values.left.rot).catch(() => {});
-    setGrip(1, gripConfig.values.right.pos, gripConfig.values.right.rot).catch(() => {});
-  }
+  applyGripNow();
   setCurlGain(curl.gain).catch(() => {});
   setSplayGain(splay.gain).catch(() => {});
   for (let h = 0; h < 2; h++) for (let f = 0; f < 5; f++) applyCurlRange(h, f);
