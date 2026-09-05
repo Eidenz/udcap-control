@@ -8,7 +8,7 @@ use std::sync::atomic::{fence, AtomicU32, Ordering};
 
 pub const SHM_PATH: &str = "/dev/shm/udcap_hands";
 pub const SHM_MAGIC: u32 = 0x5544_4331;
-pub const SHM_VERSION: u32 = 13;
+pub const SHM_VERSION: u32 = 14;
 pub const HAND_COUNT: usize = 2;
 pub const RECEIVER_MAX: usize = 4;
 
@@ -16,6 +16,10 @@ pub const RECEIVER_MAX: usize = 4;
 pub const CMD_PAIR_START: u32 = 8;
 pub const CMD_PAIR_STOP: u32 = 9;
 pub const CMD_SET_CHANNEL: u32 = 10;
+// Thumbstick calibration (cmd_arg = hand, -1 = every hand).
+pub const CMD_JOY_CALIB_CENTER: u32 = 11;
+pub const CMD_JOY_CALIB_RANGE_START: u32 = 12;
+pub const CMD_JOY_CALIB_RANGE_STOP: u32 = 13;
 
 const MAX_BEND_RAD: f32 = 1.35;
 
@@ -65,13 +69,17 @@ struct Hand {
     btn_menu: u32,
     btn_joy: u32,
     btn_power: u32,
+    controller_version: u32, // 1 = original module, 2 = Control Module 2.0, 0 = unknown
     fps: f32,
     fw: [u8; 16],
     glove_serial: [u8; 24],
+    joystick_fw: [u8; 16], // Control Module 2.0 firmware ("" on a 1.0 module)
     haptic_seq: u32,
     haptic_index: i32,
     haptic_duration_s: f32,
     haptic_strength: i32,
+    haptic_amplitude: f32, // 0..1; 0 = server falls back to haptic_strength
+    haptic_freq_hz: f32,   // 0 = module default
     tracker_serial: [u8; 32],
     offset_pos: [f32; 3],
     offset_rot_deg: [f32; 3],
@@ -125,6 +133,7 @@ struct Shm {
     cmd_arg2: i32,
     receiver_count: u32,
     receivers: [Receiver; RECEIVER_MAX],
+    joy_calib_state: u32, // enum udcap_joy_calib_state
 }
 
 /* ---- Serializable views sent to the frontend ---- */
@@ -144,6 +153,8 @@ pub struct HandView {
     pub btn_menu: bool,
     pub btn_joy: bool,
     pub btn_power: bool,
+    pub controller_version: u32,
+    pub joystick_fw: String,
     pub trigger: f32,
     pub grip: f32,
     pub trackpad: f32,
@@ -192,6 +203,7 @@ pub struct ShmView {
     pub cmd_seq: u32,
     pub curl_gain: f32,
     pub splay_gain: f32,
+    pub joy_calib_state: u32,
     pub receivers: Vec<ReceiverView>,
     pub hands: Vec<HandView>,
 }
@@ -274,6 +286,8 @@ impl ShmMap {
             btn_menu: h.btn_menu != 0,
             btn_joy: h.btn_joy != 0,
             btn_power: h.btn_power != 0,
+            controller_version: h.controller_version,
+            joystick_fw: cstr(&h.joystick_fw),
             trigger: h.trigger,
             grip: h.grip,
             trackpad: h.trackpad,
@@ -340,6 +354,7 @@ impl ShmMap {
             cmd_seq: g.cmd_seq,
             curl_gain: g.curl_gain,
             splay_gain: g.splay_gain,
+            joy_calib_state: g.joy_calib_state,
             receivers,
             hands: (0..HAND_COUNT).map(|i| self.read_hand(i)).collect(),
         }
@@ -355,14 +370,18 @@ impl ShmMap {
     }
 
     /// Fire a one-off haptic pulse on a hand (same channel the driver uses).
-    pub fn test_vibration(&self, hand: usize, strength: i32, duration_s: f32) {
+    /// `amplitude` is 0..1; the legacy 4..10 strength is derived for old servers.
+    pub fn test_vibration(&self, hand: usize, amplitude: f32, duration_s: f32) {
         if hand >= HAND_COUNT {
             return;
         }
+        let amp = amplitude.clamp(0.0, 1.0);
         let h = unsafe { &mut (*self.ptr).hands[hand] };
         h.haptic_index = -1;
         h.haptic_duration_s = duration_s;
-        h.haptic_strength = strength;
+        h.haptic_strength = 4 + (amp * 6.0).round() as i32;
+        h.haptic_amplitude = amp;
+        h.haptic_freq_hz = 0.0;
         let seq = unsafe { &*(&h.haptic_seq as *const u32 as *const AtomicU32) };
         seq.fetch_add(1, Ordering::Release);
     }
@@ -454,5 +473,29 @@ impl ShmMap {
         g.cmd_arg2 = arg2;
         let seq_atomic = unsafe { &*(&g.cmd_seq as *const u32 as *const AtomicU32) };
         seq_atomic.fetch_add(1, Ordering::Release) + 1
+    }
+}
+
+#[cfg(test)]
+mod layout {
+    use super::*;
+
+    // Byte-for-byte parity with the C header (udcap_shm.h, v14). The C numbers
+    // come from `sizeof`/`offsetof` on the same header; a mismatch here means a
+    // field was added on one side only.
+    #[test]
+    fn matches_c_layout() {
+        use std::mem::{offset_of, size_of};
+        assert_eq!(size_of::<Hand>(), 704);
+        assert_eq!(size_of::<Receiver>(), 44);
+        assert_eq!(size_of::<Shm>(), 1640);
+        assert_eq!(offset_of!(Hand, controller_version), 312);
+        assert_eq!(offset_of!(Hand, joystick_fw), 360);
+        assert_eq!(offset_of!(Hand, haptic_seq), 376);
+        assert_eq!(offset_of!(Hand, haptic_amplitude), 392);
+        assert_eq!(offset_of!(Hand, tracker_serial), 400);
+        assert_eq!(offset_of!(Hand, cali_valid), 696);
+        assert_eq!(offset_of!(Shm, receivers), 1460);
+        assert_eq!(offset_of!(Shm, joy_calib_state), 1636);
     }
 }

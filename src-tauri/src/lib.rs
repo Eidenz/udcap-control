@@ -199,9 +199,9 @@ fn set_analog(
 }
 
 #[tauri::command]
-fn test_vibration(state: State<AppState>, hand: usize, strength: i32, duration: f32) {
+fn test_vibration(state: State<AppState>, hand: usize, amplitude: f32, duration: f32) {
     if let Some(m) = state.shm.lock().unwrap().as_ref() {
-        m.test_vibration(hand, strength, duration);
+        m.test_vibration(hand, amplitude, duration);
     }
 }
 
@@ -225,6 +225,15 @@ fn app_version(app: tauri::AppHandle) -> String {
 fn send_command(state: State<AppState>, code: u32) -> u32 {
     match state.shm.lock().unwrap().as_ref() {
         Some(m) => m.send_command(code, 0),
+        None => 0,
+    }
+}
+
+/// Command with a target argument (e.g. thumbstick calibration: arg = hand, -1 = all).
+#[tauri::command]
+fn send_command_arg(state: State<AppState>, code: u32, arg: i32) -> u32 {
+    match state.shm.lock().unwrap().as_ref() {
+        Some(m) => m.send_command(code, arg),
         None => 0,
     }
 }
@@ -358,6 +367,7 @@ pub fn run() {
             shm_version,
             app_version,
             send_command,
+            send_command_arg,
             pair_start,
             pair_stop,
             set_channel,

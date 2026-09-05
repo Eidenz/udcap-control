@@ -58,8 +58,14 @@ conventions differ, so they tune separately).
   indicator, permissions setup.
 - **Controls** — live controller readout + per-hand **vibration test**; a visual
   **hand-schema button map** (remap A/B/System/Stick and force trigger/grip from any
-  glove input); and analog **trigger/grip** config — which finger drives each axis,
-  with dual-range min/max sliders.
+  glove input); analog **trigger/grip** config — which finger drives each axis,
+  with dual-range min/max sliders; and a guided **thumbstick calibration**.
+- **Control Module 2.0** — UdCap's newer A/B/stick module is detected automatically
+  (badge + module firmware on the Status and Controls pages): its dedicated
+  **system button** drives System/Menu, its stick is factory-normalised and
+  recalibrates on the module itself, and haptics use the module's richer
+  strength/frequency command. The original module keeps working unchanged
+  (A + B together = System).
 - **Calibrate** — guided fist → together → spread (both hands), via the GUI button
   or the glove **power button**, with audio cues.
 - **Fingers** — per-finger **curl-range tuning** (live reading + draggable handles),

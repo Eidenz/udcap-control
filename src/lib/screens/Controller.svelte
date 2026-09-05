@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
-  import { app, io, saveIo, applyHandIo, defaultHandIo } from "$lib/state.svelte";
-  import { testVibration, BTN_SOURCES, FINGER_SEL, type HandView } from "$lib/api";
+  import { app, io, saveIo, applyHandIo, defaultHandIo, stickNotice, finishStickNotice } from "$lib/state.svelte";
+  import { testVibration, sendCommandArg, CMD, JOY_CALIB, BTN_SOURCES, FINGER_SEL, type HandView } from "$lib/api";
   import Select from "$lib/components/Select.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
   import DualRange from "$lib/components/DualRange.svelte";
@@ -9,6 +9,42 @@
   const shm = $derived(app.status?.shm ?? null);
   const live = $derived(!!shm && shm.server_pid !== 0);
   const hands = $derived(shm?.hands ?? []);
+
+  // Thumbstick calibration. The server reports progress in joy_calib_state; a
+  // Control Module 2.0 runs the capture on the module itself, the original
+  // module is captured in software. Both hands are calibrated together.
+  const joyState = $derived(live ? (shm?.joy_calib_state ?? JOY_CALIB.IDLE) : JOY_CALIB.IDLE);
+  const anyV2 = $derived(hands.some((h) => h.present && h.controller_version === 2));
+  const joyStateLabel = $derived(
+    joyState === JOY_CALIB.CENTERED
+      ? "Centre stored"
+      : joyState === JOY_CALIB.RANGING
+        ? "Capturing range…"
+        : joyState === JOY_CALIB.DONE
+          ? "Calibrated"
+          : "Not calibrated",
+  );
+  const joyCmd = (code: number) => sendCommandArg(code, -1).catch(() => {});
+  const moduleName = (h: HandView) => (h.controller_version === 2 ? "Module 2.0" : "Module 1.0");
+
+  // One-time Control Module 2.0 nudge (shared with Status). "Show me" scrolls to the
+  // calibration card and briefly highlights it; arriving from Status does the same
+  // via stickNotice.scrollTo once this screen is mounted.
+  const showStickNotice = $derived(!stickNotice.done && anyV2);
+  let joycalEl = $state<HTMLDivElement | undefined>();
+  let joycalFlash = $state(false);
+  function scrollToJoycal() {
+    finishStickNotice();
+    joycalEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    joycalFlash = true;
+    setTimeout(() => (joycalFlash = false), 1800);
+  }
+  $effect(() => {
+    if (stickNotice.scrollTo && joycalEl) {
+      stickNotice.scrollTo = false;
+      scrollToJoycal();
+    }
+  });
 
   // Displayed columns: one when linked, two when per-hand.
   const cols = $derived(io.linked ? [0] : [0, 1]);
@@ -83,8 +119,19 @@
       <div class="cname">
         <span class="dot" class:on={h?.present && h.link === 3}></span>
         <h3>{name}</h3>
+        {#if h?.present && h.controller_version}
+          <span
+            class="modchip"
+            class:v2={h.controller_version === 2}
+            title={h.controller_version === 2
+              ? `Control Module 2.0${h.joystick_fw ? ` · firmware ${h.joystick_fw}` : ""}`
+              : "Original control module"}
+          >
+            {moduleName(h)}
+          </span>
+        {/if}
       </div>
-      <button class="btn tonal state-layer" disabled={!h?.present} onclick={() => testVibration(hand, 140, 0.25)}>
+      <button class="btn tonal state-layer" disabled={!h?.present} onclick={() => testVibration(hand, 1, 0.25)}>
         Test vibration
       </button>
     </div>
@@ -98,7 +145,7 @@
         <div class="btns">
           <span class="pill" class:on={h.btn_a}>A</span>
           <span class="pill" class:on={h.btn_b}>B</span>
-          <span class="pill" class:on={h.btn_menu}>Menu</span>
+          <span class="pill" class:on={h.btn_menu}>{h.controller_version === 2 ? "System" : "Menu"}</span>
           <span class="pill wide" class:on={h.btn_joy}>Stick click</span>
           <span class="pill wide" class:on={h.btn_power}>Power</span>
         </div>
@@ -148,6 +195,15 @@
 <div class="screen">
   {#if !live}
     <div class="card banner"><p>Start the server and connect gloves to see live inputs.</p></div>
+  {/if}
+  {#if showStickNotice}
+    <div class="card banner stick">
+      <p><b>Control Module 2.0 detected.</b> Calibrate the thumbsticks once if they drift at rest or clip at the edges.</p>
+      <div class="bact">
+        <button class="btn text state-layer" onclick={finishStickNotice}>Dismiss</button>
+        <button class="btn tonal state-layer" onclick={scrollToJoycal}>Show me</button>
+      </div>
+    </div>
   {/if}
   <div class="cols2">
     {@render pad(hands[0], "Left", 0)}
@@ -231,6 +287,36 @@
   <div class="card">
     <h3>Thumbstick &amp; trackpad</h3>
     <p class="muted">Fine-tune the stick and the touch trackpad.</p>
+    <div class="joycal" class:flash={joycalFlash} bind:this={joycalEl}>
+      <div class="joyhead">
+        <div>
+          <span class="optlabel">Thumbstick calibration</span>
+          <p class="opthint">
+            {#if anyV2}
+              A Control Module 2.0 ships pre-calibrated and stores a new calibration on the module itself. Only redo
+              this if the stick drifts or won't reach its edges.
+            {:else}
+              Captures the stick's resting centre and how far it travels, for both hands at once.
+            {/if}
+          </p>
+        </div>
+        <span class="jstate" class:on={joyState === JOY_CALIB.DONE}>{joyStateLabel}</span>
+      </div>
+      <div class="joysteps">
+        {#if joyState === JOY_CALIB.CENTERED}
+          <button class="btn tonal state-layer" onclick={() => joyCmd(CMD.JOY_CALIB_RANGE_START)}>Next: capture range</button>
+          <span class="opthint">Centre stored. Click, then roll each stick slowly around its full edge a few times.</span>
+        {:else if joyState === JOY_CALIB.RANGING}
+          <button class="btn tonal state-layer" onclick={() => joyCmd(CMD.JOY_CALIB_RANGE_STOP)}>Finish</button>
+          <span class="opthint">Keep circling both sticks to their edges, then click Finish.</span>
+        {:else}
+          <button class="btn tonal state-layer" disabled={!live} onclick={() => joyCmd(CMD.JOY_CALIB_CENTER)}>
+            {joyState === JOY_CALIB.DONE ? "Recalibrate" : "Calibrate: capture centre"}
+          </button>
+          <span class="opthint">Leave both sticks untouched, then click.</span>
+        {/if}
+      </div>
+    </div>
     <div class="grid" style="grid-template-columns: repeat({cols.length}, 1fr)">
       {#each cols as hand}
         <div class="col">
@@ -281,6 +367,18 @@
   .banner p {
     margin: 0;
     color: var(--on-surface-var);
+  }
+  .banner.stick {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border: 1px solid var(--warn);
+  }
+  .bact {
+    display: flex;
+    gap: 8px;
+    flex: none;
   }
   .muted {
     color: var(--muted);
@@ -547,6 +645,64 @@
     font-size: 12px;
     color: var(--muted);
     line-height: 1.35;
+  }
+  .modchip {
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    display: inline-grid;
+    place-items: center;
+    white-space: nowrap;
+  }
+  .modchip.v2 {
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+  }
+  .joycal {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    margin: 0 -12px 16px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    border-bottom-color: var(--outline-dim);
+    transition: border-color 0.4s var(--ease), background 0.4s var(--ease);
+  }
+  .joycal.flash {
+    border-color: var(--primary);
+    background: var(--primary-container);
+  }
+  .joyhead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .joyhead .opthint {
+    margin-top: 4px;
+    max-width: 560px;
+  }
+  .jstate {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    white-space: nowrap;
+    padding-top: 3px;
+  }
+  .jstate.on {
+    color: var(--primary);
+  }
+  .joysteps {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
   }
   .mm {
     display: flex;

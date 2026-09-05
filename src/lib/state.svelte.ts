@@ -212,6 +212,21 @@ export function dismissMonadoNotice() {
 export const openMonadoGuide = () => (monadoNotice.guideOpen = true);
 export const closeMonadoGuide = () => (monadoNotice.guideOpen = false);
 
+// One-time thumbstick nudge for the Control Module 2.0: shown the first time a 2.0
+// module is seen, until acted on -- dismissed, followed to the calibration card, or a
+// stick calibration completes (tick() watches joy_calib_state). `scrollTo` asks the
+// Controls screen to bring its calibration card into view once it is mounted.
+export const stickNotice = $state({
+  done: ls?.getItem("udcap.stickNoticeDone") === "1",
+  scrollTo: false,
+});
+export function finishStickNotice() {
+  stickNotice.done = true;
+  ls?.setItem("udcap.stickNoticeDone", "1");
+}
+export const requestStickCalibScroll = () => (stickNotice.scrollTo = true);
+const JOY_CALIB_DONE = 3;
+
 // Calibration audio cues. Driven globally off calib_state so they play whoever
 // triggered calibration (GUI button *or* the glove menu button), on any tab.
 export const calibSound = $state({ on: ls?.getItem("udcap.calibSound") !== "0" });
@@ -314,6 +329,10 @@ async function tick() {
       const snd = CALIB_SOUNDS[cs];
       if (snd) playCalib(snd);
       prevCalibState = cs;
+    }
+    // A completed stick calibration settles the one-time nudge.
+    if (present && !stickNotice.done && app.status?.shm?.joy_calib_state === JOY_CALIB_DONE) {
+      finishStickNotice();
     }
   } catch {
     app.connected = false;

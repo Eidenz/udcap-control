@@ -1,6 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app, appMode, setMode, monadoNotice, dismissMonadoNotice, openMonadoGuide } from "$lib/state.svelte";
+  import {
+    app,
+    appMode,
+    setMode,
+    monadoNotice,
+    dismissMonadoNotice,
+    openMonadoGuide,
+    stickNotice,
+    finishStickNotice,
+    requestStickCalibScroll,
+  } from "$lib/state.svelte";
   import {
     udevStatus,
     udevInstall,
@@ -13,7 +23,7 @@
   } from "$lib/api";
   import Segmented from "$lib/components/Segmented.svelte";
 
-  let { onCalibrate }: { onCalibrate: () => void } = $props();
+  let { onCalibrate, onStickCalibrate }: { onCalibrate: () => void; onStickCalibrate: () => void } = $props();
 
   let udev = $state<UdevStatus | null>(null);
   let installing = $state(false);
@@ -73,6 +83,8 @@
   // stale shm from a crashed server shouldn't show "Calibrated" when offline.
   const hands = $derived(live ? (shm?.hands ?? []) : []);
   const ready = $derived(hands.length === 2 && hands.every((h) => h.present && h.calibrated));
+  // First sighting of a Control Module 2.0: nudge towards the stick calibration once.
+  const showStickNotice = $derived(!stickNotice.done && hands.some((h) => h.present && h.controller_version === 2));
 </script>
 
 {#snippet glove(h: HandView | undefined, name: string)}
@@ -99,6 +111,17 @@
         </div>
         <div class="stat">
           <span class="sval mono">{h.fw || "—"}</span><span class="slabel">Firmware</span>
+        </div>
+        <div
+          class="stat"
+          title={h.controller_version === 2
+            ? `Control Module 2.0${h.joystick_fw ? ` · firmware ${h.joystick_fw}` : ""}`
+            : h.controller_version === 1
+              ? "Original control module"
+              : "No button data yet"}
+        >
+          <span class="sval">{h.controller_version === 2 ? "2.0" : h.controller_version === 1 ? "1.0" : "—"}</span
+          ><span class="slabel">Module</span>
         </div>
       </div>
 
@@ -145,6 +168,30 @@
       <div class="svr-actions">
         <button class="btn text state-layer" onclick={dismissMonadoNotice}>Dismiss</button>
         <button class="btn tonal state-layer" onclick={openMonadoGuide}>Show me how</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if showStickNotice}
+    <div class="card setup stick">
+      <div>
+        <h3>Control Module 2.0 detected</h3>
+        <p class="muted">
+          The new module keeps its own thumbstick calibration. If a stick drifts at rest or clips into a square, run
+          the one-time calibration in Controls. Skip it if both sticks already centre and reach their edges.
+        </p>
+      </div>
+      <div class="svr-actions">
+        <button class="btn text state-layer" onclick={finishStickNotice}>Dismiss</button>
+        <button
+          class="btn tonal state-layer"
+          onclick={() => {
+            requestStickCalibScroll();
+            onStickCalibrate();
+          }}
+        >
+          Calibrate sticks
+        </button>
       </div>
     </div>
   {/if}
@@ -247,6 +294,9 @@
     margin: 4px 0 0;
   }
   .setup.monado {
+    border-color: var(--warn);
+  }
+  .setup.stick {
     border-color: var(--warn);
   }
   .mode {

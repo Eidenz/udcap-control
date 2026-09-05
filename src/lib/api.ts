@@ -14,6 +14,8 @@ export interface HandView {
   btn_menu: boolean;
   btn_joy: boolean;
   btn_power: boolean;
+  controller_version: number; // 1 = original module, 2 = Control Module 2.0, 0 = unknown
+  joystick_fw: string; // Control Module 2.0 firmware ("" on a 1.0 module)
   trigger: number;
   grip: number;
   trackpad: number;
@@ -59,6 +61,7 @@ export interface ShmView {
   cmd_seq: number;
   curl_gain: number;
   splay_gain: number;
+  joy_calib_state: number; // JOY_CALIB.*
   receivers: ReceiverView[];
   hands: HandView[];
 }
@@ -79,7 +82,13 @@ export const CMD = {
   CALIB_COMPLETE: 5,
   CALIB_CANCEL: 6,
   CALIB_AUTO: 7,
+  // Thumbstick calibration; sent with sendCommandArg(code, hand) (-1 = both).
+  JOY_CALIB_CENTER: 11,
+  JOY_CALIB_RANGE_START: 12,
+  JOY_CALIB_RANGE_STOP: 13,
 } as const;
+
+export const JOY_CALIB = { IDLE: 0, CENTERED: 1, RANGING: 2, DONE: 3 } as const;
 
 export const CALIB = {
   IDLE: 0,
@@ -132,15 +141,18 @@ export const setAnalog = (
 
 // Button remap: btn_src[output] = source.
 export const BTN_OUTPUTS = ["A button", "B button", "System / Menu", "Stick click", "Trigger", "Grip"];
-export const BTN_SOURCES = ["None", "A", "B", "A + B", "Stick"]; // index = udcap_btn_src
+// index = udcap_btn_src. Source 3 is A + B together on the original module and
+// the dedicated system button on a Control Module 2.0.
+export const BTN_SOURCES = ["None", "A", "B", "System / A+B", "Stick"];
 // Finger source for analog trigger/grip (index = udcap finger; 5 = grip avg).
 export const FINGER_SEL = ["Thumb", "Index", "Middle", "Ring", "Pinky", "Grip (M+R+P)"];
-export const testVibration = (hand: number, strength: number, duration: number) =>
-  invoke("test_vibration", { hand, strength, duration });
+export const testVibration = (hand: number, amplitude: number, duration: number) =>
+  invoke("test_vibration", { hand, amplitude, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");
 export const shmVersion = () => invoke<number>("shm_version");
 export const appVersion = () => invoke<string>("app_version");
 export const sendCommand = (code: number) => invoke<number>("send_command", { code });
+export const sendCommandArg = (code: number, arg: number) => invoke<number>("send_command_arg", { code, arg });
 export const pairStart = (receiver: number) => invoke<number>("pair_start", { receiver });
 export const pairStop = (receiver: number) => invoke<number>("pair_stop", { receiver });
 export const setChannel = (receiver: number, channel: number) =>

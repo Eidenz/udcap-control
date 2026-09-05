@@ -150,7 +150,7 @@
 
     <section class="content">
       {#if tab === "status"}
-        <StatusScreen onCalibrate={() => (tab = "calibration")} />
+        <StatusScreen onCalibrate={() => (tab = "calibration")} onStickCalibrate={() => (tab = "controller")} />
       {:else if tab === "controller"}
         <ControllerScreen />
       {:else if tab === "calibration"}
