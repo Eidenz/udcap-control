@@ -29,6 +29,8 @@ If a finger ever refuses to track, Settings has a hidden debug page with a guide
 - **UDCAP gloves** with their USB receivers.
 - **SteamVR**, or a **Monado** built from the [fork](https://github.com/Eidenz/Monado). Stock Monado does not include the glove driver, because Monado compiles its drivers in. The app has a step-by-step guide for this, whether you use [Monadeck](https://github.com/Eidenz/monadeck), Envision or your own build.
 
+> **WiVRn is not supported yet.** WiVRn ships its own built-in Monado, so the glove driver cannot be added to it the way it is to the fork. Standalone headsets streaming through WiVRn will not see the gloves for now. A WiVRn fork support is planned.
+
 ## Install
 
 Grab the `.deb`, `.rpm` or `.AppImage` from the [releases page](https://github.com/Eidenz/UDCAP-control/releases). Arch users can build the package from [`packaging/arch/`](packaging/arch/).
