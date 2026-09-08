@@ -1,111 +1,77 @@
-# UDCAP Control
+<div align="center">
+
+# 🧤 UDCAP Control
+
+**Use your UDCAP VR gloves on Linux, for Monado and SteamVR**
 
 ![UDCAP Control](screenshot.png)
 
-A Tauri 2 + Svelte 5 control panel for UDCAP (Udexreal) VR gloves on Linux — for
-both **Monado** and **SteamVR**. It supervises `udcap-server`, shows live glove
-status, runs guided calibration, tunes per-finger curl/splay and the per-hand
-alignment offsets, remaps the controller inputs, pairs gloves to their receivers,
-and installs the SteamVR driver — all over a shared-memory contract (`udcap_shm.h`).
-
 > **AI usage:** This project was developed with AI assistance (Anthropic's Claude), under human direction, testing, and review.
 
-## Run (user)
+</div>
 
-If you plan on using Monado, you must install my [custom fork](https://github.com/Eidenz/Monado). This is because I use protocols that are not yet implemented in the official Monado repo. Installation procedures (only a few commands) available there.
+## What it does
 
-For SteamVR users, nothing special, the app should install its driver on first launch.
+UDCAP Control is the desktop app that sits between your gloves and your VR runtime. It talks to the gloves, keeps them connected, and turns them into a pair of Index-style controllers with full finger tracking.
 
-## Run (dev)
+- **Works with Monado and SteamVR.** Pick your runtime with one toggle. SteamVR users get the driver installed on first launch. Monado users run the [Monado fork](https://github.com/Eidenz/Monado) that has the glove driver built in.
+- **Guided calibration.** Start it from the app or with the glove's power button, and follow the audio cues.
+- **Fine-tune each finger.** Live readouts with draggable handles for every finger's range, plus overall curl strength and finger splay.
+- **Make the gloves feel like controllers.** Remap A, B, System and the stick on a picture of the glove. Choose which finger drives the trigger and which drives the grip. Calibrate the thumbstick. Test the vibration.
+- **Fix the hand position per game.** Alignment profiles hold the position and rotation offsets for each hand, so VRChat and your other games can each have their own. Switch profiles live.
+- **Pair and stay connected.** Pair gloves to their receivers, change the radio channel to dodge interference, and let the app reconnect a glove that was switched off and on again.
 
-### You must clone [udcap-server](https://github.com/Eidenz/udcap-server) in a folder next to udcap-control, as this repo is the client app only.
+If a finger ever refuses to track, Settings has a hidden debug page with a guided range test and a report you can share.
 
-```bash
-pnpm install
-./sync-server.sh        # build + bundle the udcap-server binary (once)
-./sync-steamvr.sh       # build + bundle the SteamVR driver (once, for SteamVR mode)
-pnpm tauri dev
-```
+## Requirements
 
+- **Linux.** Packages are built for Debian/Ubuntu, Fedora, Arch and as an AppImage.
+- **UDCAP gloves** with their USB receivers.
+- **SteamVR**, or a **Monado** built from the [fork](https://github.com/Eidenz/Monado). Stock Monado does not include the glove driver, because Monado compiles its drivers in. The app has a step-by-step guide for this, whether you use [Monadeck](https://github.com/Eidenz/monadeck), Envision or your own build.
+
+## Install
+
+Grab the `.deb`, `.rpm` or `.AppImage` from the [releases page](https://github.com/Eidenz/UDCAP-control/releases). Arch users can build the package from [`packaging/arch/`](packaging/arch/).
+
+## Using it
+
+1. Plug in the receivers and switch the gloves on.
+2. Open the app. On the **Status** page, accept the device permissions prompt once so the app can talk to the receivers.
+3. Choose **Monado** or **SteamVR** with the runtime toggle. For SteamVR, press **Install** when the app offers the driver. For Monado, follow the guide in Settings if you have not set up the fork yet.
+4. Go to **Calibrate** and follow the three poses. Your fingers now track.
+5. Start your runtime. Launch UDCAP Control before SteamVR, so the driver can find the gloves.
+
+The **Fingers**, **Controls** and **Space** pages are there when something needs tuning. Nothing there is required to get going.
 
 ## Troubleshooting
 
-> My gloves are not detected in Monado!
-- Did you install the [custom fork](https://github.com/Eidenz/Monado)? Are your trackers paired and connected to Monado? You should see your trackers and "UDCAP" gloves in the list if you use Envision.
+**My gloves are not detected in Monado.** Make sure you are running the [fork](https://github.com/Eidenz/Monado), and that your trackers are paired and connected. You should see the trackers and the "UDCAP" gloves in Monado's device list.
 
-> My gloves are not detected in SteamVR!
-- Did you launch udcap-control before SteamVR? If not, try restarting SteamVR.
+**My gloves are not detected in SteamVR.** Launch UDCAP Control before SteamVR, or restart SteamVR with the app open.
 
-> My hands positions/rotations are wrong!
-- You can tweak them in the "Space" tab, which is saved on app restart.
+**A glove stopped responding after I switched it off.** The app resets the receiver and picks the glove back up on its own. Give it a few seconds.
 
-## Monado & SteamVR
+**My hands sit in the wrong place or point the wrong way.** Open the **Space** page and adjust the offsets for that hand. Save them into a profile named after the game.
 
-The same backend (`udcap-server` + the shared memory) drives both runtimes, only
-the *consumer* differs. Pick one with the **Runtime mode** toggle on the dashboard;
-it swaps the Space-tab alignment offsets to that runtime's set (their pose
-conventions differ, so they tune separately).
+**One finger won't track or moves the wrong way.** Run calibration again, keeping the glove snug and each finger still during the fist pose. If it persists, open the debug page from Settings and send the report.
 
-- **Monado** — the native `drv_udcap` driver (built into your Monado).
-- **SteamVR** — a bundled OpenVR driver the app installs with one click (dashboard
-  in SteamVR mode → **Install**; Reinstall/Remove live in Settings). It registers
-  the gloves as Index Knuckles, and **auto-updates** itself when you update the app.
+## Development
 
-## Screens
+The app is a Tauri 2 + SvelteKit (Svelte 5) project. It bundles two binaries built from [UDCAP-server](https://github.com/Eidenz/UDCAP-server): the server that reads the gloves, and the SteamVR driver. Clone that repo in a folder next to this one, then:
 
-- **Status** — runtime-mode toggle, SteamVR driver install (first run), per-glove
-  battery / FPS / firmware, live buttons + trigger/grip + joystick, VR-ready
-  indicator, permissions setup.
-- **Controls** — live controller readout + per-hand **vibration test**; a visual
-  **hand-schema button map** (remap A/B/System/Stick and force trigger/grip from any
-  glove input); analog **trigger/grip** config — which finger drives each axis,
-  with dual-range min/max sliders; and a guided **thumbstick calibration**.
-- **Control Module 2.0** — UdCap's newer A/B/stick module is detected automatically
-  (badge + module firmware on the Status and Controls pages): its dedicated
-  **system button** drives System/Menu, its stick is factory-normalised and
-  recalibrates on the module itself, and haptics use the module's richer
-  strength/frequency command. The original module keeps working unchanged
-  (A + B together = System).
-- **Calibrate** — guided fist → together → spread (both hands), via the GUI button
-  or the glove **power button**, with audio cues.
-- **Fingers** — per-finger **curl-range tuning** (live reading + draggable handles),
-  global **curl strength**, and **finger splay**.
-- **Space** — named **alignment profiles**, one per game (create / rename / delete,
-  switch live; each holds both runtimes' offsets and the grip anchor), with
-  per-hand position/rotation alignment offsets (**per runtime mode**),
-  tracker presets, tracker-serial mapping; live.
-- **Devices** — **pair** gloves to their wireless receivers (guided, one-at-a-time
-  flow) and switch each receiver's **RF channel** to dodge interference.
-- **Settings** — server override, device permissions, **SteamVR driver** management,
-  about + credits.
-
-Frameless custom titlebar; dark Material-You design.
-
-## Architecture
-
-```
-udcap-control (Tauri app)
-  ├─ Rust: spawn/supervise udcap-server, mmap shm (seqlock reads), commands,
-  │        one-click SteamVR-driver install (+ auto-update)
-  └─ Svelte 5 (custom MD3): polls backend ~10Hz, renders + writes offsets/maps/commands
-        │ shared memory (/dev/shm/udcap_hands)
-        ▼
-   udcap-server  →  reads gloves, publishes state, calibration + haptics + reconnection
-        │ (same shm — two consumers, pick one at runtime)
-        ├─ drv_udcap (Monado)     →  OpenXR Index controllers
-        └─ driver_udcap (SteamVR) →  OpenVR Index/Knuckles controllers (+ skeletal fingers)
+```bash
+pnpm install
+./sync-server.sh        # build and bundle UDCAP-server (once)
+./sync-steamvr.sh       # build and bundle the SteamVR driver (once)
+pnpm tauri dev
 ```
 
-The `udcap-server` binary and the SteamVR `driver_udcap` are built from the
-[UdCap-Community-HandDriver-Core](https://github.com/Eidenz/udcap-server) repo and
-bundled into the app (system libs only) via `sync-server.sh` / `sync-steamvr.sh`.
-
-## Packaging
-
-`pnpm tauri build` produces **deb / rpm / AppImage**. Arch is covered by a
-PKGBUILD in [`packaging/arch/`](packaging/arch/) (the AUR route) — see its README.
+`pnpm tauri build` produces the deb, rpm and AppImage packages. The server publishes glove state through shared memory, which both the Monado driver and the SteamVR driver read. The app supervises the server, reads the same memory for its live displays, and writes your offsets, mappings and commands back. An Envision profile for the Monado fork lives in [`extras/envision/`](extras/envision/).
 
 ## Credits
 
-UDCAP glove decoding by the **OldestNova** team (Community Hand Driver Core, MIT);
-**Valve** OpenVR/SteamVR + the hand-skeleton sample; **Monado** (OpenXR runtime).
+UDCAP glove decoding by the **OldestNova** team (Community Hand Driver Core, MIT). **Valve** for OpenVR, SteamVR and the hand-skeleton sample. [**Monado**](https://gitlab.freedesktop.org/monado/monado) (OpenXR runtime).
+
+## License
+
+MIT.
