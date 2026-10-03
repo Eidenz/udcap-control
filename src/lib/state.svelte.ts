@@ -9,10 +9,18 @@ import {
   setBtnMap,
   setAnalog,
   setCloseToTray,
+  serverStart,
+  serverStop,
   type Status,
 } from "./api";
 
 const ls = typeof localStorage !== "undefined" ? localStorage : null;
+// Anything saved by an earlier version means this isn't a first launch. Read
+// before this module writes anything.
+const hadSettings = (() => {
+  for (let i = 0; i < (ls?.length ?? 0); i++) if (ls?.key(i)?.startsWith("udcap.")) return true;
+  return false;
+})();
 const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));
 function loadJSON<T>(key: string, fallback: T): T {
   try {
@@ -22,6 +30,9 @@ function loadJSON<T>(key: string, fallback: T): T {
     return clone(fallback);
   }
 }
+
+// Screens reachable from the sidebar ("debug" is opened from Settings).
+export type Tab = "home" | "hands" | "controls" | "alignment" | "devices" | "settings" | "debug";
 
 // Shared reactive app state (Svelte 5 universal runes).
 export const app = $state<{ status: Status | null; connected: boolean }>({
@@ -42,6 +53,51 @@ export function saveConfig() {
   ls?.setItem("udcap.bin", config.serverBin);
   if (config.serverBin) setServerBin(config.serverBin).catch(() => {});
 }
+
+// First-launch checklist on Home. It goes away for good once the server has
+// been started or the user skips it; upgrades from an earlier version never see it.
+export const setup = $state({ done: hadSettings || ls?.getItem("udcap.setupDone") === "1" });
+export function finishSetup() {
+  if (setup.done) return;
+  setup.done = true;
+  ls?.setItem("udcap.setupDone", "1");
+}
+
+// Server start/stop, shared by the sidebar and the setup checklist.
+export const server = $state({ busy: false, error: null as string | null });
+export async function startServer() {
+  server.busy = true;
+  server.error = null;
+  try {
+    await serverStart(config.trackerLeft, config.trackerRight);
+    finishSetup();
+  } catch (e) {
+    server.error = String(e);
+  } finally {
+    server.busy = false;
+  }
+}
+export async function stopServer() {
+  server.busy = true;
+  try {
+    await serverStop();
+  } finally {
+    server.busy = false;
+  }
+}
+
+// Control module version last seen on each hand (1 = original, 2 = Control
+// Module 2.0), so Controls shows the right drawing while the gloves are off.
+function loadModules(): number[] {
+  try {
+    const o = JSON.parse(ls?.getItem("udcap.modules") ?? "null");
+    if (Array.isArray(o) && o.length === 2) return o.map((v) => (v === 1 || v === 2 ? v : 0));
+  } catch {
+    /* fall through */
+  }
+  return [0, 0];
+}
+export const moduleSeen = $state<number[]>(loadModules());
 
 // --- Space / grip alignment (built-in presets must mirror the server defaults) ---
 
@@ -322,17 +378,9 @@ export function setMode(m: AppMode) {
   applyOffsetNow();
 }
 
-// Monado fork notice: a dismissible reminder on Status (the guide always lives in
-// Settings). `dismissed` persists; `guideOpen` drives the shared MonadoGuide modal,
-// which is mounted once at the page root and opened from either screen.
-export const monadoNotice = $state({
-  dismissed: ls?.getItem("udcap.monadoDismissed") === "1",
-  guideOpen: false,
-});
-export function dismissMonadoNotice() {
-  monadoNotice.dismissed = true;
-  ls?.setItem("udcap.monadoDismissed", "1");
-}
+// The Monado fork guide: one modal mounted at the page root, opened from Home
+// and Devices.
+export const monadoNotice = $state({ guideOpen: false });
 export const openMonadoGuide = () => (monadoNotice.guideOpen = true);
 export const closeMonadoGuide = () => (monadoNotice.guideOpen = false);
 
@@ -451,6 +499,15 @@ async function tick() {
     const present = !!app.status?.shm && app.status.shm.server_pid !== 0;
     if (present && !shmWasPresent) applySavedToShm();
     shmWasPresent = present;
+    if (present) {
+      app.status!.shm!.hands.forEach((h, i) => {
+        const v = h.present ? h.controller_version : 0;
+        if ((v === 1 || v === 2) && v !== moduleSeen[i]) {
+          moduleSeen[i] = v;
+          ls?.setItem("udcap.modules", JSON.stringify(moduleSeen));
+        }
+      });
+    }
 
     // Only sound calibration cues while the server is live. A stale shm (crashed
     // server) shouldn't replay "done" on launch; track silently while offline.

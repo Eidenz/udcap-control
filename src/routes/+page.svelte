@@ -2,30 +2,33 @@
   import { onMount, onDestroy } from "svelte";
   import {
     app,
-    config,
+    appMode,
+    setMode,
+    server,
+    startServer,
+    stopServer,
     startPolling,
     stopPolling,
     unlockAudio,
     monadoNotice,
     closeMonadoGuide,
     syncCloseToTray,
+    type Tab,
   } from "$lib/state.svelte";
   import MonadoGuide from "$lib/components/MonadoGuide.svelte";
-  import { serverStart, serverStop } from "$lib/api";
-  import StatusScreen from "$lib/screens/Status.svelte";
-  import CalibrationScreen from "$lib/screens/Calibration.svelte";
-  import FingersScreen from "$lib/screens/Fingers.svelte";
-  import SpaceScreen from "$lib/screens/Space.svelte";
-  import ControllerScreen from "$lib/screens/Controller.svelte";
+  import Icon, { type IconName } from "$lib/components/Icon.svelte";
+  import Segmented from "$lib/components/Segmented.svelte";
+  import Page from "$lib/components/Page.svelte";
+  import HomeScreen from "$lib/screens/Home.svelte";
+  import HandsScreen from "$lib/screens/Hands.svelte";
+  import ControlsScreen from "$lib/screens/Controls.svelte";
+  import AlignmentScreen from "$lib/screens/Alignment.svelte";
   import DevicesScreen from "$lib/screens/Devices.svelte";
   import SettingsScreen from "$lib/screens/Settings.svelte";
   import DebugScreen from "$lib/screens/Debug.svelte";
-  import WindowControls from "$lib/components/WindowControls.svelte";
 
-  // "debug" is a hidden screen — reached from Settings, not the nav rail.
-  type Tab = "status" | "controller" | "calibration" | "fingers" | "space" | "devices" | "settings" | "debug";
-  let tab = $state<Tab>("status");
-  let busy = $state(false);
+  let tab = $state<Tab>("home");
+  const go = (t: Tab) => (tab = t);
 
   onMount(() => {
     syncCloseToTray();
@@ -37,147 +40,106 @@
   onDestroy(stopPolling);
 
   const shm = $derived(app.status?.shm ?? null);
+  // Did this app start the server, and is a server (ours or not) publishing?
   const running = $derived(app.status?.server_running ?? false);
-  // "Server up" = our process is alive, or an externally-started server is publishing.
-  const live = $derived(running || (!!shm && shm.server_pid !== 0));
-  const linked = $derived(shm ? shm.hands.filter((h) => h.present && h.link === 3).length : 0);
+  const live = $derived(!!shm && shm.server_pid !== 0);
+  const linked = $derived(live && shm ? shm.hands.filter((h) => h.present && h.link === 3).length : 0);
 
-  async function toggleServer() {
-    busy = true;
-    try {
-      if (running) await serverStop();
-      else await serverStart(config.trackerLeft, config.trackerRight);
-    } finally {
-      busy = false;
-    }
-  }
+  const serverLabel = $derived(live ? "Server running" : running ? "Server starting" : "Server stopped");
+  const gloves = $derived(linked === 0 ? "no gloves yet" : linked === 1 ? "1 glove linked" : "2 gloves linked");
+  const serverMeta = $derived(
+    live
+      ? `${running ? `pid ${shm?.server_pid}` : "Started outside the app"} · ${gloves}`
+      : running
+        ? "Waiting for the server…"
+        : "Gloves offline",
+  );
 
-  const nav = [
-    { id: "status", label: "Status" },
-    { id: "controller", label: "Controls" },
-    { id: "calibration", label: "Calibrate" },
-    { id: "fingers", label: "Fingers" },
-    { id: "space", label: "Space" },
-    { id: "devices", label: "Devices" },
-    { id: "settings", label: "Settings" },
-  ] as const;
+  const nav: { id: Tab; label: string; icon: IconName }[] = [
+    { id: "home", label: "Home", icon: "home" },
+    { id: "hands", label: "Hands", icon: "hand" },
+    { id: "controls", label: "Controls", icon: "gamepad" },
+    { id: "alignment", label: "Alignment", icon: "axes" },
+    { id: "devices", label: "Devices", icon: "radio" },
+  ];
+  const settingsItem = { id: "settings" as Tab, label: "Settings", icon: "settings" as IconName };
 </script>
 
+{#snippet navItem(item: { id: Tab; label: string; icon: IconName })}
+  {@const active = tab === item.id || (item.id === "settings" && tab === "debug")}
+  <button class="navitem" class:active aria-current={active ? "page" : undefined} onclick={() => (tab = item.id)}>
+    <Icon name={item.icon} />
+    <span>{item.label}</span>
+  </button>
+{/snippet}
+
 <div class="app">
-  <nav class="rail">
-    <div class="brand">U</div>
-    {#each nav as item}
-      <button
-        class="rail-item state-layer"
-        class:active={tab === item.id || (item.id === "settings" && tab === "debug")}
-        onclick={() => (tab = item.id)}
-      >
-        <span class="rail-icon">
-          {#if item.id === "status"}
-            <svg viewBox="0 0 24 24" width="24" height="24"
-              ><path fill="currentColor" d="M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm8 0h8v-9h-8v9Zm0-16v5h8V4h-8Z" /></svg
-            >
-          {:else if item.id === "controller"}
-            <svg viewBox="0 0 24 24" width="24" height="24"
-              ><path
-                fill="currentColor"
-                d="M21 6H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2M11 13H8v3H6v-3H3v-2h3V8h2v3h3v2m4.5 2a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m4-3a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"
-              /></svg
-            >
-          {:else if item.id === "calibration"}
-            <svg viewBox="0 0 24 24" width="24" height="24"
-              ><path
-                fill="currentColor"
-                d="M7 11V6a1.5 1.5 0 0 1 3 0v4h1V4a1.5 1.5 0 0 1 3 0v6h1V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1.2a6 6 0 0 1-5-2.7l-2.3-3.4a1.4 1.4 0 0 1 2-1.9L7 11Z"
-              /></svg
-            >
-          {:else if item.id === "fingers"}
-            <svg viewBox="0 0 24 24" width="24" height="24"
-              ><path
-                fill="currentColor"
-                d="M3 17v2h6v-2H3M3 5v2h10V5H3m10 16v-2h8v-2h-8v-2h-2v6h2M7 9v2H3v2h4v2h2V9H7m14 4v-2H11v2h10m-6-4h2V7h4V5h-4V3h-2v6Z"
-              /></svg
-            >
-          {:else if item.id === "devices"}
-            <svg viewBox="0 0 24 24" width="24" height="24"
-              ><path
-                fill="currentColor"
-                d="M15 7v4h1v2h-3V5h2l-3-4-3 4h2v8H8v-2.07c.7-.37 1.2-1.08 1.2-1.93 0-1.21-.99-2.2-2.2-2.2S5 7.79 5 9c0 .85.5 1.56 1.2 1.93V13c0 1.11.89 2 2 2h3v3.05c-.71.37-1.2 1.07-1.2 1.95a2.2 2.2 0 0 0 4.4 0c0-.88-.49-1.58-1.2-1.95V15h3c1.11 0 2-.89 2-2v-2h1V7h-2Z"
-              /></svg
-            >
-          {:else if item.id === "settings"}
-            <svg viewBox="0 0 24 24" width="24" height="24"
-              ><path
-                fill="currentColor"
-                d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z"
-              /></svg
-            >
-          {:else}
-            <svg viewBox="0 0 24 24" width="24" height="24"
-              ><path
-                fill="currentColor"
-                d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4Zm0 2.2 6 3v4.8c0 3.9-2.5 6.7-6 8-3.5-1.3-6-4.1-6-8V7.2l6-3Z"
-              /></svg
-            >
-          {/if}
-        </span>
-        <span class="rail-label">{item.label}</span>
-      </button>
-    {/each}
+  <nav class="side" aria-label="Main" data-tauri-drag-region>
+    <div class="brand" data-tauri-drag-region>
+      <div class="logo" aria-hidden="true">U</div>
+      <div data-tauri-drag-region>
+        <div class="bname">UDCAP Control</div>
+        <div class="bsub">Udexreal gloves</div>
+      </div>
+    </div>
+
+    <section class="server" aria-label="Server">
+      <div class="srow">
+        <span class="dot" class:on={live} class:warn={running && !live}></span>
+        <span class="slabel">{serverLabel}</span>
+      </div>
+      <div class="smeta">{serverMeta}</div>
+      {#if running}
+        <button class="btn tonal sm" disabled={server.busy} onclick={stopServer}>{server.busy ? "Stopping…" : "Stop server"}</button>
+      {:else if !live}
+        <button class="btn filled sm" disabled={server.busy} onclick={startServer}>{server.busy ? "Starting…" : "Start server"}</button>
+      {/if}
+      {#if server.error}<p class="serr">{server.error}</p>{/if}
+    </section>
+
+    <div class="runtime">
+      <span class="section-label">Runtime</span>
+      <Segmented
+        full
+        value={appMode.mode === "steamvr" ? "SteamVR" : "Monado"}
+        options={["Monado", "SteamVR"]}
+        onchange={(v) => setMode(v === "SteamVR" ? "steamvr" : "monado")}
+      />
+    </div>
+
+    <div class="nav">
+      {#each nav as item}
+        {@render navItem(item)}
+      {/each}
+    </div>
+
+    <div class="nav bottom">
+      {@render navItem(settingsItem)}
+    </div>
   </nav>
 
-  <div class="main">
-    <header class="topbar" data-tauri-drag-region>
-      <div class="title" data-tauri-drag-region>
-        <h1>UDCAP Control</h1>
-        <span class="subtitle">Udexreal gloves · Monado</span>
-      </div>
-      <div class="status-cluster">
-        <div class="chip">
-          <span class="dot" class:on={live && linked > 0} class:warn={live && linked === 0}></span>
-          {#if !live}
-            Server offline
-          {:else if linked === 2}
-            Both gloves linked
-          {:else if linked === 1}
-            1 glove linked
-          {:else}
-            Waiting for gloves
-          {/if}
-        </div>
-        <button
-          class="btn state-layer"
-          class:filled={!running}
-          class:tonal={running}
-          disabled={busy}
-          onclick={toggleServer}
-        >
-          {running ? "Stop server" : "Start server"}
-        </button>
-        <WindowControls />
-      </div>
-    </header>
-
-    <section class="content">
-      {#if tab === "status"}
-        <StatusScreen onCalibrate={() => (tab = "calibration")} onStickCalibrate={() => (tab = "controller")} />
-      {:else if tab === "controller"}
-        <ControllerScreen />
-      {:else if tab === "calibration"}
-        <CalibrationScreen />
-      {:else if tab === "fingers"}
-        <FingersScreen />
-      {:else if tab === "devices"}
-        <DevicesScreen />
-      {:else if tab === "settings"}
-        <SettingsScreen onDebug={() => (tab = "debug")} />
-      {:else if tab === "debug"}
-        <DebugScreen onBack={() => (tab = "settings")} />
-      {:else}
-        <SpaceScreen />
-      {/if}
-    </section>
-  </div>
+  <main class="main">
+    {#if tab === "home"}
+      <HomeScreen {go} />
+    {:else if tab === "hands"}
+      <HandsScreen />
+    {:else if tab === "controls"}
+      <ControlsScreen />
+    {:else if tab === "alignment"}
+      <AlignmentScreen />
+    {:else if tab === "devices"}
+      <DevicesScreen />
+    {:else if tab === "settings"}
+      <SettingsScreen {go} />
+    {:else}
+      <Page title="Diagnostics" subtitle="Live readings, calibration quality and a report to share">
+        {#snippet actions()}
+          <button class="btn text sm" onclick={() => (tab = "settings")}><Icon name="back" size={16} />Settings</button>
+        {/snippet}
+        <DebugScreen />
+      </Page>
+    {/if}
+  </main>
 </div>
 
 <MonadoGuide open={monadoNotice.guideOpen} onclose={closeMonadoGuide} />
@@ -187,85 +149,131 @@
     display: flex;
     height: 100vh;
   }
-  .rail {
-    width: 92px;
+  .side {
+    width: 224px;
     flex: none;
-    background: var(--surface);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 16px 0;
+    gap: 18px;
+    padding: 18px 12px 20px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid #1f1f24;
+    overflow-y: auto;
   }
   .brand {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, var(--primary), #8f8bff);
-    color: var(--on-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 6px;
+  }
+  .logo {
+    width: 34px;
+    height: 34px;
+    flex: none;
     display: grid;
     place-items: center;
-    font-weight: 800;
-    font-size: 22px;
-    margin-bottom: 14px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #c3c0ff, #8f8bff);
+    color: #2a2870;
+    font-size: 18px;
+    font-weight: 700;
   }
-  .rail-item {
-    width: 100%;
+  .bname {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+  .bsub {
+    font-size: 11px;
+    color: var(--text-3);
+    line-height: 1.3;
+  }
+  .server {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 8px 0;
-    color: var(--muted);
+    gap: 8px;
+    padding: 12px;
+    background: #18181c;
+    border: 1px solid var(--border);
     border-radius: 12px;
-    transition: color 0.15s var(--ease);
   }
-  .rail-item.active {
-    color: var(--on-surface);
+  .srow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
-  .rail-icon {
-    display: grid;
-    place-items: center;
-    width: 56px;
-    height: 32px;
-    border-radius: var(--radius-pill);
-    transition: background 0.18s var(--ease);
-  }
-  .rail-item.active .rail-icon {
-    background: var(--primary-container);
-    color: var(--on-primary-container);
-  }
-  .rail-label {
-    font-size: 12px;
+  .slabel {
+    font-size: 13px;
     font-weight: 600;
+  }
+  .smeta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+    line-height: 1.5;
+  }
+  .server .btn {
+    width: 100%;
+    height: 32px;
+    margin-top: 2px;
+  }
+  .serr {
+    font-size: 11px;
+    color: var(--danger-text);
+    word-break: break-word;
+  }
+  .runtime {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .runtime .section-label {
+    padding: 0 6px;
+  }
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  /* Settings sits at the foot of the sidebar, apart from the screens. */
+  .nav.bottom {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #1f1f24;
+  }
+  .navitem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: var(--radius-control);
+    color: var(--text-2);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    transition: background 0.15s var(--ease), color 0.15s var(--ease);
+  }
+  .navitem :global(svg) {
+    color: var(--text-3);
+  }
+  .navitem:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+  }
+  .navitem.active {
+    background: var(--accent-soft);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .navitem.active :global(svg) {
+    color: var(--accent);
   }
   .main {
     flex: 1;
     min-width: 0;
     display: flex;
-    flex-direction: column;
-  }
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 22px 28px 14px;
-  }
-  .title h1 {
-    font-size: 22px;
-  }
-  .subtitle {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .status-cluster {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 6px 28px 28px;
   }
 </style>

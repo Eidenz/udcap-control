@@ -14,10 +14,10 @@
       {
         "label": "main",
         "title": "UDCAP Control",
-        "width": 1000,
-        "height": 700,
-        "minWidth": 880,
-        "minHeight": 600,
+        "width": 1200,
+        "height": 770,
+        "minWidth": 960,
+        "minHeight": 640,
         "decorations": false,
         "resizable": true,
         "center": true

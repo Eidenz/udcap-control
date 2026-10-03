@@ -4,8 +4,6 @@
   import { app, appMode } from "$lib/state.svelte";
   import { appVersion, shmVersion, saveDebugReport, FINGERS, type HandView } from "$lib/api";
 
-  let { onBack }: { onBack: () => void } = $props();
-
   const shm = $derived(app.status?.shm ?? null);
   const live = $derived(!!shm && shm.server_pid !== 0);
   const hands = $derived(shm?.hands ?? []);
@@ -289,10 +287,6 @@
 </script>
 
 <div class="screen">
-  <div class="topline">
-    <button class="btn text state-layer" onclick={onBack}>← Back</button>
-    <h2>Debug &amp; diagnostics</h2>
-  </div>
   <p class="muted intro">
     Capture what the app sees for troubleshooting. Run the guided test, then <b>Save</b> or
     <b>Copy</b> the report and send it over so tracking data can be compared against a known-good setup.
@@ -483,13 +477,7 @@
     gap: 16px;
     max-width: 940px;
   }
-  .topline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
   .intro {
-    margin-top: -6px;
     max-width: 72ch;
   }
   .muted {

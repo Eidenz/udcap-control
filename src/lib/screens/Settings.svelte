@@ -1,310 +1,170 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    getServerBin,
-    setServerBin,
-    udevStatus,
-    udevInstall,
-    shmVersion,
-    appVersion,
-    steamvrStatus,
-    steamvrInstall,
-    steamvrRemove,
-    type UdevStatus,
-    type SteamvrStatus,
-  } from "$lib/api";
-  import { openMonadoGuide, closeToTray, toggleCloseToTray } from "$lib/state.svelte";
+  import { getServerBin, setServerBin, shmVersion, appVersion } from "$lib/api";
+  import { closeToTray, toggleCloseToTray, calibSound, toggleCalibSound, type Tab } from "$lib/state.svelte";
+  import Page from "$lib/components/Page.svelte";
   import Toggle from "$lib/components/Toggle.svelte";
 
-  let { onDebug }: { onDebug: () => void } = $props();
+  let { go }: { go: (t: Tab) => void } = $props();
 
   let bin = $state("");
   let saved = $state(false);
-  let udev = $state<UdevStatus | null>(null);
-  let installing = $state(false);
   let shmVer = $state(0);
   let appVer = $state("");
 
-  let svr = $state<SteamvrStatus | null>(null);
-  let svrBusy = $state(false);
-  let svrError = $state<string | null>(null);
-  async function refreshSvr() {
-    try {
-      svr = await steamvrStatus();
-    } catch {
-      svr = null;
-    }
-  }
-  async function svrAction(fn: () => Promise<unknown>) {
-    svrBusy = true;
-    svrError = null;
-    try {
-      await fn();
-      await refreshSvr();
-    } catch (e) {
-      svrError = String(e);
-    } finally {
-      svrBusy = false;
-    }
-  }
-
   onMount(async () => {
-    try {
-      bin = await getServerBin();
-    } catch {
-      bin = "";
-    }
-    try {
-      shmVer = await shmVersion();
-    } catch {
-      shmVer = 0;
-    }
-    try {
-      appVer = await appVersion();
-    } catch {
-      appVer = "";
-    }
-    await refreshUdev();
-    await refreshSvr();
+    bin = await getServerBin().catch(() => "");
+    shmVer = await shmVersion().catch(() => 0);
+    appVer = await appVersion().catch(() => "");
   });
-  async function refreshUdev() {
-    try {
-      udev = await udevStatus();
-    } catch {
-      udev = null;
-    }
-  }
   async function saveBin() {
     await setServerBin(bin);
     saved = true;
     setTimeout(() => (saved = false), 1500);
   }
-  async function installUdev() {
-    installing = true;
-    try {
-      await udevInstall();
-      await refreshUdev();
-    } catch (_) {
-      /* cancelled */
-    } finally {
-      installing = false;
-    }
-  }
+
+  const CREDITS = [
+    { who: "OldestNova", what: "UDCAP glove decoding, the Community Hand Driver Core this app is built on (MIT)" },
+    { who: "Valve", what: "OpenVR and the SteamVR driver SDK, plus the hand-skeleton sample used for finger tracking (BSD-3)" },
+    { who: "Monado", what: "the open-source OpenXR runtime the native driver plugs into" },
+  ];
 </script>
 
-<div class="screen">
-  <div class="card">
-    <h3>Server</h3>
-    <p class="muted">
-      Leave blank to auto-detect (bundled with the app, next to the executable, or on PATH).
-      Override only if your <code>udcap-server</code> lives elsewhere.
-    </p>
-    <div class="row">
-      <input placeholder="auto-detect" bind:value={bin} />
-      <button class="btn tonal state-layer" onclick={saveBin}>{saved ? "Saved ✓" : "Save"}</button>
+<Page title="Settings" subtitle={appVer ? `UDCAP Control ${appVer}` : "UDCAP Control"}>
+  <h2 class="section-label">General</h2>
+  <section class="card list" aria-label="General">
+    <div class="item">
+      <div class="grow">
+        <div class="ititle">Keep running in the tray</div>
+        <div class="hint">Closing the window leaves the server and your gloves running. Quit from the tray icon.</div>
+      </div>
+      <Toggle label="Keep running in the tray" checked={closeToTray.on} onchange={() => toggleCloseToTray()} />
     </div>
-  </div>
-
-  <div class="card">
-    <h3>Background</h3>
-    <p class="muted">
-      Closing the window keeps the app in the system tray, so the server and your gloves keep running. Quit from
-      the tray icon.
-    </p>
-    <div class="row between">
-      <span class="status">Keep running in the tray</span>
-      <Toggle label="Keep running in the tray" checked={closeToTray.on} onchange={toggleCloseToTray} />
+    <div class="item">
+      <div class="grow">
+        <div class="ititle">Calibration voice cues</div>
+        <div class="hint">A spoken cue at each pose, so you can calibrate without looking.</div>
+      </div>
+      <Toggle label="Calibration voice cues" checked={calibSound.on} onchange={() => toggleCalibSound()} />
     </div>
-  </div>
+  </section>
 
-  <div class="card">
-    <h3>Device permissions</h3>
-    <p class="muted">
-      A udev rule lets the app reach the glove dongles without sudo. Installing asks for your
-      password once.
-    </p>
-    <div class="row between">
-      <span class="status">
-        <span class="dot" class:on={udev?.installed && udev?.up_to_date} class:warn={udev?.installed && !udev?.up_to_date}></span>
-        {#if !udev}
-          Checking…
-        {:else if udev.installed && udev.up_to_date}
-          Installed
-        {:else if udev.installed}
-          Out of date
-        {:else}
-          Not installed
-        {/if}
-      </span>
-      <button class="btn tonal state-layer" disabled={installing} onclick={installUdev}>
-        {installing ? "Installing…" : udev?.installed ? "Reinstall" : "Install"}
-      </button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Monado runtime</h3>
-    <p class="muted">
-      Monado needs our fork (it compiles the UDCAP driver in) — stock Monado won't pick up the gloves. The
-      setup guide walks through Monadeck, Envision, or a manual build.
-    </p>
-    <div class="row between">
-      <span class="status"><span class="dot"></span>Requires the UDCAP Monado fork</span>
-      <button class="btn tonal state-layer" onclick={openMonadoGuide}>Setup guide</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>SteamVR driver</h3>
-    <p class="muted">Registers the gloves as Index controllers in SteamVR. Restart SteamVR after any change.</p>
-    <div class="row between">
-      <span class="status">
-        <span class="dot" class:on={svr?.registered} class:warn={svr && !svr.paths_file_found}></span>
-        {#if !svr}
-          Checking…
-        {:else if !svr.paths_file_found}
-          Launch SteamVR once first
-        {:else if svr.registered}
-          Installed
-        {:else}
-          Not installed
-        {/if}
-      </span>
-      <div class="svr-actions">
-        <button class="btn tonal state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrInstall)}>
-          {svrBusy ? "Working…" : svr?.registered ? "Reinstall" : "Install"}
-        </button>
-        {#if svr?.registered}
-          <button class="btn text state-layer" disabled={svrBusy} onclick={() => svrAction(steamvrRemove)}>Remove</button>
-        {/if}
+  <h2 class="section-label">Advanced</h2>
+  <section class="card list" aria-label="Advanced">
+    <div class="item col">
+      <div>
+        <label class="ititle" for="bin">Server binary</label>
+        <div class="hint">Leave empty to use the one bundled with the app. Override only if your <code>udcap-server</code> lives elsewhere.</div>
+      </div>
+      <div class="binrow">
+        <input id="bin" class="field mono" placeholder="Auto-detect" bind:value={bin} />
+        <button class="btn tonal" onclick={saveBin}>{saved ? "Saved" : "Save"}</button>
       </div>
     </div>
-    {#if svrError}<p class="muted err">{svrError}</p>{/if}
-  </div>
+    <div class="item">
+      <div class="grow">
+        <div class="ititle">Diagnostics</div>
+        <div class="hint">Live readings, calibration quality, a guided test and a report to share when tracking misbehaves.</div>
+      </div>
+      <button class="btn tonal sm" onclick={() => go("debug")}>Open</button>
+    </div>
+  </section>
 
-  <div class="card">
-    <h3>Diagnostics</h3>
-    <p class="muted">
-      Having tracking trouble, fingers that won't move, or a calibration that feels off? Open the debug
-      page to inspect live readings and calibration quality, run a guided test, and export a report to share.
-    </p>
-    <div class="row between">
-      <span class="status"><span class="dot"></span>Debug data &amp; exportable report</span>
-      <button class="btn tonal state-layer" onclick={onDebug}>Open debug page</button>
+  <h2 class="section-label">About</h2>
+  <section class="card list about grow-y" aria-label="About">
+    <div>
+      <div class="kv"><span>Version</span><b>{appVer || "—"}</b></div>
+      <div class="kv"><span>Shared-memory contract</span><b>{shmVer ? `v${shmVer}` : "—"}</b></div>
+      <div class="kv"><span>Runtimes</span><b>Monado · SteamVR</b></div>
+      <div class="kv"><span>Author</span><b>Eidenz</b></div>
     </div>
-  </div>
-
-  <div class="card about">
-    <h3>About</h3>
-    <div class="kv"><span>Application</span><b>UDCAP Control{appVer ? ` ${appVer}` : ""}</b></div>
-    <div class="kv"><span>Shared-memory contract</span><b>{shmVer ? `v${shmVer}` : "—"}</b></div>
-    <div class="kv"><span>Runtimes</span><b>Monado · SteamVR</b></div>
-    <div class="kv"><span>Author</span><b>Eidenz</b></div>
-    <p class="muted">
-      Hand tracking + Index-controller inputs for Udexreal (UDCAP) gloves on Linux. Pose comes from a
-      Lighthouse tracker mounted on each glove.
-    </p>
-  </div>
-
-  <div class="card credits">
-    <h3>Credits &amp; acknowledgements</h3>
-    <div class="credit">
-      <b>OldestNova</b>
-      <span>UDCAP glove decoding — the Community Hand Driver Core this app is built on (MIT).</span>
+    <div class="credits">
+      <span class="ctitle">Built on</span>
+      {#each CREDITS as c}
+        <p class="hint"><b>{c.who}</b> · {c.what}</p>
+      {/each}
     </div>
-    <div class="credit">
-      <b>Valve — OpenVR / SteamVR</b>
-      <span>SteamVR runtime &amp; driver SDK, plus the OpenVR hand-skeleton sample used for finger tracking (BSD-3).</span>
-    </div>
-    <div class="credit">
-      <b>Monado</b>
-      <span>The open-source OpenXR runtime the native driver (drv_udcap) plugs into.</span>
-    </div>
-  </div>
-</div>
+  </section>
+</Page>
 
 <style>
-  .screen {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    max-width: 880px;
-  }
-  .muted {
-    color: var(--muted);
-    margin: 6px 0 0;
-    font-size: 13px;
-  }
-  code {
-    background: var(--surface-2);
-    padding: 1px 5px;
-    border-radius: 5px;
-    font-size: 12px;
-  }
-  .row {
-    display: flex;
-    gap: 12px;
-    margin-top: 14px;
-    align-items: center;
-  }
-  .row.between {
-    justify-content: space-between;
-  }
-  input {
+  .grow {
     flex: 1;
-    background: var(--surface-2);
-    border: 1px solid var(--outline-dim);
-    color: var(--on-surface);
-    border-radius: var(--radius-s);
-    height: 40px;
-    padding: 0 12px;
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-    outline: none;
+    min-width: 0;
   }
-  input:focus {
-    border-color: var(--primary);
+  h2.section-label {
+    margin: 4px 0 -6px;
   }
-  .status {
+  .list {
+    padding: 4px 16px;
+  }
+  .item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: var(--on-surface-var);
-    font-weight: 600;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
   }
-  .svr-actions {
-    display: flex;
-    gap: 8px;
-  }
-  .err {
-    color: #ff8a8a;
-  }
-  .about .kv {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--outline-dim);
-    font-size: 14px;
-  }
-  .about .kv span {
-    color: var(--muted);
-  }
-  .credit {
-    display: flex;
+  .item.col {
     flex-direction: column;
-    gap: 2px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--outline-dim);
+    align-items: stretch;
+    gap: 10px;
   }
-  .credit:last-child {
+  .item:last-child {
     border-bottom: none;
   }
-  .credit b {
+  .ititle {
     font-size: 14px;
-    color: var(--on-surface);
+    font-weight: 600;
   }
-  .credit span {
+  .binrow {
+    display: flex;
+    gap: 8px;
+  }
+  .binrow .field {
+    flex: 1;
+    min-width: 0;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .about {
+    display: grid;
+    align-content: start;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    column-gap: 32px;
+  }
+  .kv:last-child {
+    border-bottom: none;
+  }
+  .kv {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
     font-size: 13px;
-    color: var(--muted);
+  }
+  .kv span {
+    color: var(--text-3);
+  }
+  .kv b {
+    font-weight: 600;
+  }
+  .credits {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 0;
+  }
+  .ctitle {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .credits b {
+    color: var(--text);
+    font-weight: 600;
   }
 </style>
