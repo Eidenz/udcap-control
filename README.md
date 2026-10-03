@@ -70,6 +70,8 @@ pnpm tauri dev
 
 `pnpm tauri build` produces the deb, rpm and AppImage packages. The server publishes glove state through shared memory, which both the Monado driver and the SteamVR driver read. The app supervises the server, reads the same memory for its live displays, and writes your offsets, mappings and commands back. An Envision profile for the Monado fork lives in [`extras/envision/`](extras/envision/).
 
+Releases are built by CI, on Debian 12 so they also run on older distros: push a version tag (`v0.7` for 0.7.0) and it drafts the GitHub release. It builds the UDCAP-server commit that the sync scripts record in `.github/udcap-server.ref`, so push UDCAP-server and commit that file first. Releases ship the voice cues in `packaging/sounds/`.
+
 ## Credits
 
 UDCAP glove decoding by the **OldestNova** team (Community Hand Driver Core, MIT). **Valve** for OpenVR, SteamVR and the hand-skeleton sample. [**Monado**](https://gitlab.freedesktop.org/monado/monado) (OpenXR runtime).

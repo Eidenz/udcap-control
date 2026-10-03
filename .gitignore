@@ -9,3 +9,5 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 *.mp3
+# Release builds ship these voice cues (static/sounds/ stays local)
+!/packaging/sounds/*.mp3

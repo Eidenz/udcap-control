@@ -16,3 +16,6 @@ the 🔊/🔇 toggle on the Calibrate screen turns all cues on/off.
 | `done.mp3`     | calibration completes                              |
 
 Keep them short. Voice clips matching the Windows app's cues work great.
+
+The MP3s here are gitignored: release builds (CI) ship the set in
+[`packaging/sounds/`](../../packaging/sounds/) instead.

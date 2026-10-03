@@ -6,12 +6,12 @@ Tauri 2's bundler only targets **deb / rpm / appimage** — there's no native
 
 ## Releasing
 
-1. Build the app as usual (`pnpm tauri build`) — it produces
-   `src-tauri/target/release/bundle/deb/udcap-control_<ver>_amd64.deb`.
-2. Upload that `.deb` to a GitHub release tagged `v<ver>`.
-3. In [`PKGBUILD`](./PKGBUILD): set `url` to your repo, bump `pkgver`, and either
-   keep `sha256sums=('SKIP')` or pin the real hash (`updpkgsums`).
-4. Generate the AUR metadata and publish:
+1. Push a version tag (`v0.7` for 0.7.0): CI builds the packages and drafts a
+   GitHub release with them, including
+   `udcap-control_<ver>_amd64.deb`. Publish the draft.
+2. In [`PKGBUILD`](./PKGBUILD): bump `pkgver`, and either keep
+   `sha256sums=('SKIP')` or pin the real hash (`updpkgsums`).
+3. Generate the AUR metadata and publish:
    ```bash
    makepkg --printsrcinfo > .SRCINFO
    # commit PKGBUILD + .SRCINFO to the AUR repo (aur.archlinux.org)

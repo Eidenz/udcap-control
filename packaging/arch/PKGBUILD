@@ -1,24 +1,26 @@
 # Maintainer: Eidenz <eidenzgames@gmail.com>
 #
 # Tauri has no native pacman bundle target (only deb/rpm/appimage), so this
-# repackages the Debian build into an Arch package. Point `url` at your repo and
-# bump `pkgver` per release; everything else is derived.
+# repackages the Debian build from the GitHub release into an Arch package. Bump
+# `pkgver` per release; everything else is derived.
 pkgname=udcap-control-bin
 _appname=udcap-control
-pkgver=0.2.0
+pkgver=0.7.0
 pkgrel=1
 pkgdesc="Hand tracking + Index-controller inputs for Udexreal (UDCAP) gloves (Monado & SteamVR)"
 arch=('x86_64')
 url="https://github.com/Eidenz/udcap-control"
 license=('MIT')
-# webkit2gtk-4.1 pulls the GTK/webview stack; libcap/systemd-libs are for the
-# bundled udcap-server (hidapi/boost are statically linked in).
-depends=('webkit2gtk-4.1' 'gtk3' 'libcap')
+# webkit2gtk-4.1 pulls the GTK/webview stack, libayatana-appindicator draws the
+# tray icon; libcap/systemd-libs are for the bundled udcap-server (hidapi/boost
+# are statically linked in).
+depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'libcap')
 provides=("$_appname")
 conflicts=("$_appname")
 # The bundled udcap-server / driver_udcap.so are prebuilt; don't strip them.
 options=('!strip')
-source=("$url/releases/download/v${pkgver}/${_appname}_${pkgver}_amd64.deb")
+# Releases are tagged v0.7 for 0.7.0, v0.7.1 for 0.7.1.
+source=("$url/releases/download/v${pkgver%.0}/${_appname}_${pkgver}_amd64.deb")
 sha256sums=('SKIP')
 
 package() {

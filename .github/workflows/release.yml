@@ -1,0 +1,46 @@
+name: Release
+
+# Linux packages built on Debian 12, so they run there and on anything newer,
+# udcap-server and the SteamVR driver included (built from the udcap-server
+# commit in .github/udcap-server.ref). A version tag (v0.7 or v0.7.1, matching
+# tauri.conf.json) drafts a GitHub release with them; a manual run just keeps
+# them as an artifact.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container: debian:12
+    steps:
+      - name: Tools for the checkout
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Build dependencies
+        run: bash .github/scripts/linux-release.sh deps
+      - name: Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-
+      - name: Test and build
+        run: bash .github/scripts/linux-release.sh build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: udcap-control-linux
+          path: dist/*
+      - name: Draft the release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: dist/*
+          fail_on_unmatched_files: true
