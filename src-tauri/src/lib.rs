@@ -6,12 +6,17 @@ mod udev;
 use server::ServerProc;
 use shm::{ShmMap, ShmView};
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{Manager, State};
 
 struct AppState {
     server: Mutex<ServerProc>,
     shm: Mutex<Option<ShmMap>>,
+    /// Closing the window hides it to the tray (server keeps running) instead of quitting.
+    close_to_tray: AtomicBool,
 }
 
 #[derive(Serialize)]
@@ -54,7 +59,6 @@ fn poll(state: State<AppState>) -> Status {
 // bundled resource (packaged app) -> next to the executable -> dev binaries dir
 // -> PATH.
 fn resolve_server_bin(app: &tauri::AppHandle, override_path: &str) -> String {
-    use tauri::Manager;
     if !override_path.is_empty() && std::path::Path::new(override_path).exists() {
         return override_path.to_string();
     }
@@ -110,8 +114,7 @@ fn server_start(
     Ok(())
 }
 
-#[tauri::command]
-fn server_stop(state: State<AppState>) {
+fn stop_server(state: &AppState) {
     let killed = state.server.lock().unwrap().stop();
     let mut g = state.shm.lock().unwrap();
     if killed {
@@ -120,6 +123,34 @@ fn server_stop(state: State<AppState>) {
         }
     }
     *g = None;
+}
+
+#[tauri::command]
+fn server_stop(state: State<AppState>) {
+    stop_server(&state);
+}
+
+#[tauri::command]
+fn set_close_to_tray(state: State<AppState>, enabled: bool) {
+    state.close_to_tray.store(enabled, Ordering::Relaxed);
+}
+
+fn show_window(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+    }
+}
+
+fn toggle_window(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        if win.is_visible().unwrap_or(false) {
+            let _ = win.hide();
+        } else {
+            show_window(app);
+        }
+    }
 }
 
 #[tauri::command]
@@ -217,7 +248,6 @@ fn shm_version() -> u32 {
 
 #[tauri::command]
 fn app_version(app: tauri::AppHandle) -> String {
-    use tauri::Manager;
     app.package_info().version.to_string()
 }
 
@@ -279,7 +309,6 @@ fn steamvr_status() -> steamvr::SteamvrStatus {
 
 #[tauri::command]
 fn steamvr_install(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager;
     let src = app
         .path()
         .resolve("steamvr-driver/udcap", tauri::path::BaseDirectory::Resource)
@@ -297,7 +326,6 @@ fn steamvr_remove() -> Result<(), String> {
 /// UI can show it / reveal it.
 #[tauri::command]
 fn save_envision_profile(app: tauri::AppHandle) -> Result<String, String> {
-    use tauri::Manager;
     const PROFILE: &str = include_str!("../../extras/envision/udcap-monado.json");
     let dir = app
         .path()
@@ -313,7 +341,6 @@ fn save_envision_profile(app: tauri::AppHandle) -> Result<String, String> {
 /// user's Downloads folder. Returns the full path so the UI can reveal it.
 #[tauri::command]
 fn save_debug_report(app: tauri::AppHandle, filename: String, contents: String) -> Result<String, String> {
-    use tauri::Manager;
     // Guard against path traversal: keep only the file name component.
     let name = std::path::Path::new(&filename)
         .file_name()
@@ -333,13 +360,16 @@ fn save_debug_report(app: tauri::AppHandle, filename: String, contents: String) 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // A second launch (e.g. from the app menu while hidden in the tray) shows
+        // this window instead of starting another app fighting over the dongles.
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_window(app)))
         .plugin(tauri_plugin_opener::init())
         .manage(AppState {
             server: Mutex::new(ServerProc::new()),
             shm: Mutex::new(None),
+            close_to_tray: AtomicBool::new(true),
         })
         .setup(|app| {
-            use tauri::Manager;
             // If the SteamVR driver is registered, refresh the installed copy from
             // the bundle so an app update auto-updates the driver.
             if let Ok(src) = app
@@ -348,7 +378,49 @@ pub fn run() {
             {
                 steamvr::sync_if_registered(&src);
             }
+
+            // Tray icon: left-click toggles the window; menu shows it or quits.
+            let show = MenuItem::with_id(app, "show", "Show UDCAP Control", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let mut tray = TrayIconBuilder::new()
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .tooltip("UDCAP Control")
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => show_window(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        toggle_window(tray.app_handle());
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+            tray.build(app)?;
             Ok(())
+        })
+        // Closing the window hides it to the tray when that's enabled (the
+        // default), so the server keeps the gloves running; otherwise it quits.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let to_tray = window
+                    .app_handle()
+                    .try_state::<AppState>()
+                    .is_some_and(|s| s.close_to_tray.load(Ordering::Relaxed));
+                if to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             poll,
@@ -378,7 +450,17 @@ pub fn run() {
             steamvr_remove,
             save_envision_profile,
             save_debug_report,
+            set_close_to_tray,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Quitting stops the server we started: the process exits without
+            // dropping managed state, so ServerProc's Drop never gets to.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(state) = app.try_state::<AppState>() {
+                    stop_server(&state);
+                }
+            }
+        });
 }

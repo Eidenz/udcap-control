@@ -149,6 +149,7 @@ export const FINGER_SEL = ["Thumb", "Index", "Middle", "Ring", "Pinky", "Grip (M
 export const testVibration = (hand: number, amplitude: number, duration: number) =>
   invoke("test_vibration", { hand, amplitude, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");
+export const setCloseToTray = (enabled: boolean) => invoke("set_close_to_tray", { enabled });
 export const shmVersion = () => invoke<number>("shm_version");
 export const appVersion = () => invoke<string>("app_version");
 export const sendCommand = (code: number) => invoke<number>("send_command", { code });

@@ -13,7 +13,8 @@
     type UdevStatus,
     type SteamvrStatus,
   } from "$lib/api";
-  import { openMonadoGuide } from "$lib/state.svelte";
+  import { openMonadoGuide, closeToTray, toggleCloseToTray } from "$lib/state.svelte";
+  import Toggle from "$lib/components/Toggle.svelte";
 
   let { onDebug }: { onDebug: () => void } = $props();
 
@@ -101,6 +102,18 @@
     <div class="row">
       <input placeholder="auto-detect" bind:value={bin} />
       <button class="btn tonal state-layer" onclick={saveBin}>{saved ? "Saved ✓" : "Save"}</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Background</h3>
+    <p class="muted">
+      Closing the window keeps the app in the system tray, so the server and your gloves keep running. Quit from
+      the tray icon.
+    </p>
+    <div class="row between">
+      <span class="status">Keep running in the tray</span>
+      <Toggle label="Keep running in the tray" checked={closeToTray.on} onchange={toggleCloseToTray} />
     </div>
   </div>
 

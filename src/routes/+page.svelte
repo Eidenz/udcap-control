@@ -1,6 +1,15 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { app, config, startPolling, stopPolling, unlockAudio, monadoNotice, closeMonadoGuide } from "$lib/state.svelte";
+  import {
+    app,
+    config,
+    startPolling,
+    stopPolling,
+    unlockAudio,
+    monadoNotice,
+    closeMonadoGuide,
+    syncCloseToTray,
+  } from "$lib/state.svelte";
   import MonadoGuide from "$lib/components/MonadoGuide.svelte";
   import { serverStart, serverStop } from "$lib/api";
   import StatusScreen from "$lib/screens/Status.svelte";
@@ -19,6 +28,7 @@
   let busy = $state(false);
 
   onMount(() => {
+    syncCloseToTray();
     startPolling();
     // Unlock audio on the first interaction (webview autoplay policy).
     window.addEventListener("pointerdown", unlockAudio, { once: true });

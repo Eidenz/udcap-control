@@ -8,6 +8,7 @@ import {
   setCurlRange,
   setBtnMap,
   setAnalog,
+  setCloseToTray,
   type Status,
 } from "./api";
 
@@ -349,6 +350,17 @@ export function finishStickNotice() {
 }
 export const requestStickCalibScroll = () => (stickNotice.scrollTo = true);
 const JOY_CALIB_DONE = 3;
+
+// Closing the window hides the app to the tray, keeping the server (and the
+// gloves) running; off = closing quits. The backend starts out on and gets the
+// saved choice at startup.
+export const closeToTray = $state({ on: ls?.getItem("udcap.closeToTray") !== "0" });
+export const syncCloseToTray = () => setCloseToTray(closeToTray.on).catch(() => {});
+export function toggleCloseToTray() {
+  closeToTray.on = !closeToTray.on;
+  ls?.setItem("udcap.closeToTray", closeToTray.on ? "1" : "0");
+  syncCloseToTray();
+}
 
 // Calibration audio cues. Driven globally off calib_state so they play whoever
 // triggered calibration (GUI button *or* the glove menu button), on any tab.
