@@ -7,33 +7,71 @@
   }: { value: string; options: string[]; onchange?: (v: string) => void; compact?: boolean } = $props();
 
   let open = $state(false);
+  let trigger = $state<HTMLButtonElement>();
+  let menu = $state<HTMLUListElement>();
+  let place = $state("");
 
   function pick(o: string) {
     value = o;
     open = false;
     onchange?.(o);
   }
+
+  // The open menu is moved to <body> and placed against the viewport. Inside a
+  // transformed ancestor (the button-mapping nodes) it would share that
+  // ancestor's stacking context, so later siblings painted over it, and its
+  // click-away backdrop only covered the ancestor's box.
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy: () => node.remove() };
+  }
+
+  // Drop below the trigger, or above it when there's more room there.
+  $effect(() => {
+    if (!open || !trigger || !menu) return;
+    const r = trigger.getBoundingClientRect();
+    const h = menu.offsetHeight;
+    const below = window.innerHeight - r.bottom - 6;
+    const top = h > below && r.top - 6 > below ? r.top - 6 - h : r.bottom + 6;
+    place = `top:${top}px;right:${window.innerWidth - r.right}px;min-width:${r.width}px`;
+
+    // A scroll or resize would leave the menu behind, so close instead.
+    const close = () => (open = false);
+    const onScroll = (e: Event) => {
+      if (!menu?.contains(e.target as Node)) close();
+    };
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", close);
+    };
+  });
 </script>
 
+<svelte:window onkeydown={(e) => open && e.key === "Escape" && (open = false)} />
+
 <div class="select" class:compact>
-  <button type="button" class="trigger state-layer" class:open onclick={() => (open = !open)}>
+  <button type="button" class="trigger state-layer" class:open bind:this={trigger} onclick={() => (open = !open)}>
     <span>{value}</span>
     <svg class="arrow" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="m7 10 5 5 5-5z" /></svg>
   </button>
   {#if open}
-    <button type="button" class="backdrop" aria-label="Close" onclick={() => (open = false)}></button>
-    <ul class="menu">
-      {#each options as o}
-        <li>
-          <button type="button" class="opt state-layer" class:sel={o === value} onclick={() => pick(o)}>
-            <span>{o}</span>
-            {#if o === value}
-              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
-            {/if}
-          </button>
-        </li>
-      {/each}
-    </ul>
+    <div use:portal>
+      <button type="button" class="backdrop" aria-label="Close" onclick={() => (open = false)}></button>
+      <ul class="menu" bind:this={menu} style={place}>
+        {#each options as o}
+          <li>
+            <button type="button" class="opt state-layer" class:sel={o === value} onclick={() => pick(o)}>
+              <span>{o}</span>
+              {#if o === value}
+                <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
+              {/if}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </div>
   {/if}
 </div>
 
@@ -81,10 +119,7 @@
     border: none;
   }
   .menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 100%;
+    position: fixed;
     z-index: 11;
     list-style: none;
     margin: 0;
