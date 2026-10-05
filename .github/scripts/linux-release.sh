@@ -71,6 +71,9 @@ server() {
 # - Its .DirIcon is an absolute link into the build directory, so it points
 #   nowhere on anyone else's machine and the AppImage shows no icon. Point it
 #   at the biggest of the app's own icons instead (the 256x256 one).
+# Unpacking makes every folder owner-only (and AppRun.wrapped comes as 0770):
+# mounts that enforce permissions, like firejail's, then refuse to run it for
+# anyone but root. Open them up before packing again.
 fix_appimage() {
   local img work root icon
   img=$(realpath "$1")
@@ -85,6 +88,7 @@ fix_appimage() {
     exit 1
   fi
   ln -sfn "$icon" "$root/.DirIcon"
+  chmod -R go-w,a+rX "$root"
   ARCH=x86_64 appimagetool --no-appstream "$root" "$img"
   rm -rf "$work"
 }
