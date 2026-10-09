@@ -54,23 +54,41 @@ export function saveConfig() {
   if (config.serverBin) setServerBin(config.serverBin).catch(() => {});
 }
 
-// First-launch checklist on Home. It goes away for good once the server has
-// been started or the user skips it; upgrades from an earlier version never see it.
-export const setup = $state({ done: hadSettings || ls?.getItem("udcap.setupDone") === "1" });
+// First-launch setup (screens/Setup), shown before the rest of the app. Done
+// for good once finished or skipped; upgrades from an earlier version never see
+// it. "0" marks a setup in progress, so the settings it saves along the way
+// don't pass for an upgrade after a restart.
+const setupFlag = ls?.getItem("udcap.setupDone");
+export const setup = $state({
+  done: setupFlag === "1" || (setupFlag == null && hadSettings),
+  runtimeChosen: ls?.getItem("udcap.setupRuntime") === "1",
+  monadoReady: ls?.getItem("udcap.setupMonado") === "1",
+});
+if (!setup.done) ls?.setItem("udcap.setupDone", "0");
 export function finishSetup() {
   if (setup.done) return;
   setup.done = true;
   ls?.setItem("udcap.setupDone", "1");
 }
+export function chooseRuntime(m: AppMode) {
+  setMode(m);
+  setup.runtimeChosen = true;
+  ls?.setItem("udcap.setupRuntime", "1");
+}
+export function setMonadoReady(on: boolean) {
+  setup.monadoReady = on;
+  ls?.setItem("udcap.setupMonado", on ? "1" : "0");
+}
+// Setup's "Assign" asks Alignment to bring its tracker fields into view.
+export const trackersFocus = $state({ request: false });
 
-// Server start/stop, shared by the sidebar and the setup checklist.
+// Server start/stop, shared by the sidebar and the mini window.
 export const server = $state({ busy: false, error: null as string | null });
 export async function startServer() {
   server.busy = true;
   server.error = null;
   try {
     await serverStart(config.trackerLeft, config.trackerRight);
-    finishSetup();
   } catch (e) {
     server.error = String(e);
   } finally {
@@ -410,6 +428,15 @@ export function toggleCloseToTray() {
   syncCloseToTray();
 }
 
+// Minimalist mode: a small status window (routes/mini) stands in for Home, and
+// this full window opens from its menu on the page picked. On by default; it
+// waits for the first-launch setup, which needs Home's checklist.
+export const minimal = $state({ on: ls?.getItem("udcap.minimal") !== "0" });
+export function toggleMinimal() {
+  minimal.on = !minimal.on;
+  ls?.setItem("udcap.minimal", minimal.on ? "1" : "0");
+}
+
 // Calibration audio cues. Driven globally off calib_state so they play whoever
 // triggered calibration (GUI button *or* the glove menu button), on any tab.
 export const calibSound = $state({ on: ls?.getItem("udcap.calibSound") !== "0" });
@@ -528,13 +555,27 @@ async function tick() {
   }
 }
 
+// WebKitGTK fires a hidden window's timers at most once a second, and this
+// window often runs hidden (tray, minimalist mode) while it still has to catch
+// every calibration step for its cue. A worker's timers aren't slowed down, so
+// a worker keeps the beat.
+let clock: Worker | undefined;
+let clockUrl: string | undefined;
 export function startPolling() {
   stopPolling();
   tick();
-  timer = setInterval(tick, 100);
+  try {
+    clockUrl ??= URL.createObjectURL(new Blob(["setInterval(() => postMessage(0), 100)"], { type: "text/javascript" }));
+    clock = new Worker(clockUrl);
+    clock.onmessage = tick;
+  } catch {
+    timer = setInterval(tick, 100);
+  }
 }
 
 export function stopPolling() {
   if (timer) clearInterval(timer);
   timer = undefined;
+  clock?.terminate();
+  clock = undefined;
 }

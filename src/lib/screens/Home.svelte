@@ -4,10 +4,6 @@
     app,
     appMode,
     config,
-    setup,
-    finishSetup,
-    server,
-    startServer,
     openMonadoGuide,
     stickNotice,
     finishStickNotice,
@@ -117,20 +113,6 @@
     done: trackersSet,
     action: trackersSet ? undefined : { label: "Assign", run: () => go("alignment") },
   });
-  const steps = $derived<Row[]>([
-    permissionsRow,
-    runtimeRow,
-    trackersRow,
-    {
-      title: "Start the server",
-      desc: "Power on the gloves. They link on their own.",
-      done: false,
-      action: { label: server.busy ? "Starting…" : "Start server", run: startServer, disabled: server.busy },
-    },
-  ]);
-  // The step to do next gets the filled button; the Monado guide is advice, not a step to tick.
-  const current = $derived(steps.findIndex((s) => !s.done && !s.info));
-
   // --- Live state --------------------------------------------------------------
   const shm = $derived(app.status?.shm ?? null);
   const live = $derived(!!shm && shm.server_pid !== 0);
@@ -144,9 +126,7 @@
 
   const subtitle = $derived(
     !live
-      ? setup.done
-        ? "Server stopped. Start it to connect the gloves."
-        : "Server stopped"
+      ? "Server stopped. Start it to connect the gloves."
       : linkedHands.length === 2
         ? `Both gloves linked and streaming to ${runtimeName}`
         : linkedHands.length === 1
@@ -172,16 +152,6 @@
     return parts.filter(Boolean).join(" · ");
   }
 </script>
-
-{#snippet badge(s: Row, i: number)}
-  {#if s.done}
-    <span class="badge ok"><Icon name="check" size={14} stroke={3} /></span>
-  {:else if i === current}
-    <span class="badge cur">{i + 1}</span>
-  {:else}
-    <span class="badge">{i + 1}</span>
-  {/if}
-{/snippet}
 
 {#snippet bar(label: string, v: number)}
   <div class="bar"><span>{label}</span><span class="track"><span style="width:{v * 100}%"></span></span></div>
@@ -255,123 +225,82 @@
     {/if}
   {/snippet}
 
-  {#if !setup.done}
-    <section class="card setup" aria-labelledby="setup-h">
-      <div class="setuphead">
-        <h2 id="setup-h">Get set up</h2>
-        <span class="hint">Once. After that, Start server is all you need.</span>
-        <span class="grow"></span>
-        <button class="btn text sm" onclick={finishSetup}>Skip</button>
-      </div>
-      <ol>
-        {#each steps as s, i}
-          <li>
-            {@render badge(s, i)}
-            <div class="grow">
-              <div class="stitle">{s.title}</div>
-              <div class="hint" class:mono={s.mono}>{s.desc}</div>
-            </div>
-            {#if s.action}
-              <button
-                class="btn sm"
-                class:filled={i === current}
-                class:tonal={i !== current}
-                disabled={s.action.disabled}
-                onclick={s.action.run}>{s.action.label}</button
-              >
-            {/if}
-          </li>
-        {/each}
-      </ol>
-      {#if server.error || actionError}<p class="err">{server.error ?? actionError}</p>{/if}
-    </section>
-    <div class="grid2 grow-y">
-      {#each ["Left glove", "Right glove"] as name, i}
-        <section class="card offcard" aria-label={name}>
-          <HandGlyph size={160} mirror={i === 1} dim />
-          <div class="hhead"><h2>{name}</h2><span class="chip sm"><span class="pip"></span>Offline</span></div>
-          <p class="hint">Shows up here once the server runs and the glove links.</p>
-        </section>
-      {/each}
-    </div>
-  {:else}
-    {#if shmError}
-      <div class="card banner bad">
-        <Icon name="alert" />
-        <p>The server is running but its shared memory can't be read: <code>{shmError}</code></p>
-      </div>
-    {/if}
-    {#if showStickNotice}
-      <div class="card banner">
-        <Icon name="info" />
-        <p>
-          <b>Control Module 2.0 detected.</b> It keeps its own thumbstick calibration. Redo it once if a stick drifts at
-          rest or clips into a square.
-        </p>
-        <button class="btn text sm" onclick={finishStickNotice}>Dismiss</button>
-        <button class="btn tonal sm" onclick={calibrateSticks}>Calibrate sticks</button>
-      </div>
-    {/if}
-
-    <div class="grid2 grow-y">
-      {@render handCard(hands[0], "Left glove", 0)}
-      {@render handCard(hands[1], "Right glove", 1)}
-    </div>
-
-    <div class="grid2">
-      <section class="card cal" aria-labelledby="cal-h">
-        <div class="calhead">
-          {#if allCalibrated}
-            <span class="calicon ok"><Icon name="check" stroke={2.25} /></span>
-          {:else if canCalibrate}
-            <span class="calicon warn"><Icon name="alert" /></span>
-          {:else}
-            <span class="calicon"><Icon name="hand" /></span>
-          {/if}
-          <div>
-            <h2 id="cal-h">{allCalibrated ? "Calibrated" : canCalibrate ? "Calibration needed" : "Calibration"}</h2>
-            <p class="desc">
-              {#if allCalibrated}
-                {linkedHands.length === 2 ? "Both hands." : "The linked hand."} Recalibrate if a finger drifts or won't close all the way.
-              {:else if canCalibrate}
-                Run it with the gloves on, so finger tracking matches your hands.
-              {:else}
-                Available once the gloves are linked.
-              {/if}
-            </p>
-          </div>
-        </div>
-        <div class="row">
-          <button class="btn filled" disabled={!canCalibrate} onclick={calibrate}>{allCalibrated ? "Recalibrate" : "Calibrate"}</button>
-          <button class="btn tonal" onclick={() => go("hands")}>Tune fingers</button>
-        </div>
-        <p class="hint">In VR, press a glove's power button to start a calibration.</p>
-      </section>
-
-      <section class="card checks" aria-labelledby="checks-h">
-        <h2 id="checks-h">Setup</h2>
-        {#each [permissionsRow, trackersRow, runtimeRow] as r}
-          <div class="check">
-            {#if r.done}
-              <span class="cbadge ok"><Icon name="check" size={12} stroke={3} /></span>
-            {:else if r.info}
-              <span class="cbadge info">i</span>
-            {:else}
-              <span class="cbadge todo">!</span>
-            {/if}
-            <div class="grow">
-              <div class="stitle">{r.title}</div>
-              <div class="hint" class:mono={r.mono}>{r.desc}</div>
-            </div>
-            {#if r.action}
-              <button class="link" disabled={r.action.disabled} onclick={r.action.run}>{r.action.label === "Show me how" ? "Guide" : r.action.label}</button>
-            {/if}
-          </div>
-        {/each}
-        {#if actionError}<p class="err">{actionError}</p>{/if}
-      </section>
+  {#if shmError}
+    <div class="card banner bad">
+      <Icon name="alert" />
+      <p>The server is running but its shared memory can't be read: <code>{shmError}</code></p>
     </div>
   {/if}
+  {#if showStickNotice}
+    <div class="card banner">
+      <Icon name="info" />
+      <p>
+        <b>Control Module 2.0 detected.</b> It keeps its own thumbstick calibration. Redo it once if a stick drifts at
+        rest or clips into a square.
+      </p>
+      <button class="btn text sm" onclick={finishStickNotice}>Dismiss</button>
+      <button class="btn tonal sm" onclick={calibrateSticks}>Calibrate sticks</button>
+    </div>
+  {/if}
+
+  <div class="grid2 grow-y">
+    {@render handCard(hands[0], "Left glove", 0)}
+    {@render handCard(hands[1], "Right glove", 1)}
+  </div>
+
+  <div class="grid2">
+    <section class="card cal" aria-labelledby="cal-h">
+      <div class="calhead">
+        {#if allCalibrated}
+          <span class="calicon ok"><Icon name="check" stroke={2.25} /></span>
+        {:else if canCalibrate}
+          <span class="calicon warn"><Icon name="alert" /></span>
+        {:else}
+          <span class="calicon"><Icon name="hand" /></span>
+        {/if}
+        <div>
+          <h2 id="cal-h">{allCalibrated ? "Calibrated" : canCalibrate ? "Calibration needed" : "Calibration"}</h2>
+          <p class="desc">
+            {#if allCalibrated}
+              {linkedHands.length === 2 ? "Both hands." : "The linked hand."} Recalibrate if a finger drifts or won't close all the way.
+            {:else if canCalibrate}
+              Run it with the gloves on, so finger tracking matches your hands.
+            {:else}
+              Available once the gloves are linked.
+            {/if}
+          </p>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn filled" disabled={!canCalibrate} onclick={calibrate}>{allCalibrated ? "Recalibrate" : "Calibrate"}</button>
+        <button class="btn tonal" onclick={() => go("hands")}>Tune fingers</button>
+      </div>
+      <p class="hint">In VR, press a glove's power button to start a calibration.</p>
+    </section>
+
+    <section class="card checks" aria-labelledby="checks-h">
+      <h2 id="checks-h">Setup</h2>
+      {#each [permissionsRow, trackersRow, runtimeRow] as r}
+        <div class="check">
+          {#if r.done}
+            <span class="cbadge ok"><Icon name="check" size={12} stroke={3} /></span>
+          {:else if r.info}
+            <span class="cbadge info">i</span>
+          {:else}
+            <span class="cbadge todo">!</span>
+          {/if}
+          <div class="grow">
+            <div class="stitle">{r.title}</div>
+            <div class="hint" class:mono={r.mono}>{r.desc}</div>
+          </div>
+          {#if r.action}
+            <button class="link" disabled={r.action.disabled} onclick={r.action.run}>{r.action.label === "Show me how" ? "Guide" : r.action.label}</button>
+          {/if}
+        </div>
+      {/each}
+      {#if actionError}<p class="err">{actionError}</p>{/if}
+    </section>
+  </div>
 </Page>
 
 <style>
@@ -390,61 +319,6 @@
     color: var(--danger-text);
   }
 
-  /* first-launch checklist */
-  .setup {
-    padding: 20px;
-  }
-  .setuphead {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .setuphead h2 {
-    font-family: var(--font-display);
-    font-size: 19px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  ol {
-    list-style: none;
-    margin: 14px 0 0;
-    padding: 0;
-  }
-  li {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  li:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-  .badge {
-    width: 28px;
-    height: 28px;
-    flex: none;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 1.5px var(--outline);
-    color: var(--text-3);
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .badge.cur {
-    background: var(--accent);
-    box-shadow: none;
-    color: var(--on-accent);
-  }
-  .badge.ok {
-    background: var(--success-soft);
-    box-shadow: none;
-    color: var(--success-text);
-  }
   .stitle {
     font-size: 14px;
     font-weight: 600;
@@ -452,18 +326,6 @@
   .check .stitle {
     font-size: 13px;
   }
-  .offcard {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    text-align: center;
-    background: #1a1a1e;
-    border-style: dashed;
-    border-color: #2e2e35;
-  }
-
   /* banners */
   .banner {
     display: flex;

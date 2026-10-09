@@ -72,6 +72,8 @@ export interface Status {
   server_running: boolean;
   shm: ShmView | null;
   shm_error: string | null;
+  // Runtimes with the gloves' driver attached to the current server.
+  runtimes: { steamvr: boolean; monado: boolean };
 }
 
 export const CMD = {
@@ -150,6 +152,8 @@ export const testVibration = (hand: number, amplitude: number, duration: number)
   invoke("test_vibration", { hand, amplitude, duration });
 export const getServerBin = () => invoke<string>("get_server_bin");
 export const setCloseToTray = (enabled: boolean) => invoke("set_close_to_tray", { enabled });
+export const setMinimalMode = (enabled: boolean, startup: boolean) =>
+  invoke("set_minimal_mode", { enabled, startup });
 export const shmVersion = () => invoke<number>("shm_version");
 export const appVersion = () => invoke<string>("app_version");
 export const sendCommand = (code: number) => invoke<number>("send_command", { code });

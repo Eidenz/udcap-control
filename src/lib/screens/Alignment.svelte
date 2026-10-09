@@ -16,6 +16,7 @@
     createProfile,
     renameProfile,
     deleteProfile,
+    trackersFocus,
   } from "$lib/state.svelte";
   import { setOffset, setGrip } from "$lib/api";
   import Page from "$lib/components/Page.svelte";
@@ -111,6 +112,19 @@
     confirmDelete = false;
     deleteProfile(activeProfile().id);
   }
+
+  // Arriving from setup's "Assign": bring the tracker fields into view, ready to type.
+  let trkEl = $state<HTMLElement | undefined>();
+  let trkInput = $state<HTMLInputElement | undefined>();
+  let trkFlash = $state(false);
+  $effect(() => {
+    if (!trackersFocus.request || !trkEl) return;
+    trackersFocus.request = false;
+    trkEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    trkInput?.focus({ preventScroll: true });
+    trkFlash = true;
+    setTimeout(() => (trkFlash = false), 1800);
+  });
 
   let trackersSaved = $state(false);
   function saveTrackers() {
@@ -221,7 +235,7 @@
     </section>
   {/if}
 
-  <section class="card" aria-labelledby="trk-h">
+  <section class="card trk" class:flash={trkFlash} aria-labelledby="trk-h" bind:this={trkEl}>
     <div class="inline">
       <h2 id="trk-h">Trackers</h2>
       <p class="hint">The Lighthouse tracker on each glove. Used when the server starts.</p>
@@ -229,7 +243,7 @@
     <div class="trow">
       <label>
         Left tracker
-        <input class="field mono" placeholder="LHR-…" bind:value={config.trackerLeft} />
+        <input class="field mono" placeholder="LHR-…" bind:value={config.trackerLeft} bind:this={trkInput} />
       </label>
       <label>
         Right tracker
@@ -241,6 +255,12 @@
 </Page>
 
 <style>
+  .trk {
+    transition: box-shadow 0.3s var(--ease);
+  }
+  .trk.flash {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
   .grow {
     flex: 1;
     min-width: 0;

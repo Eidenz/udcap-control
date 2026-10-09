@@ -1,9 +1,20 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getServerBin, setServerBin, shmVersion, appVersion } from "$lib/api";
-  import { closeToTray, toggleCloseToTray, calibSound, toggleCalibSound, type Tab } from "$lib/state.svelte";
+  import {
+    closeToTray,
+    toggleCloseToTray,
+    calibSound,
+    toggleCalibSound,
+    minimal,
+    toggleMinimal,
+    appMode,
+    setMode,
+    type Tab,
+  } from "$lib/state.svelte";
   import Page from "$lib/components/Page.svelte";
   import Toggle from "$lib/components/Toggle.svelte";
+  import Segmented from "$lib/components/Segmented.svelte";
 
   let { go }: { go: (t: Tab) => void } = $props();
 
@@ -26,13 +37,31 @@
   const CREDITS = [
     { who: "OldestNova", what: "UDCAP glove decoding, the Community Hand Driver Core this app is built on (MIT)" },
     { who: "Valve", what: "OpenVR and the SteamVR driver SDK, plus the hand-skeleton sample used for finger tracking (BSD-3)" },
-    { who: "Monado", what: "the open-source OpenXR runtime the native driver plugs into" },
+    { who: "Monado", what: "the open-source OpenXR runtime the native driver plugs into. Logo © Collabora, CC BY 4.0" },
   ];
 </script>
 
 <Page title="Settings" subtitle={appVer ? `UDCAP Control ${appVer}` : "UDCAP Control"}>
   <h2 class="section-label">General</h2>
   <section class="card list" aria-label="General">
+    <div class="item">
+      <div class="grow">
+        <div class="ititle">VR runtime</div>
+        <div class="hint">Where the gloves show up. Each one keeps its own hand alignment.</div>
+      </div>
+      <Segmented
+        value={appMode.mode === "steamvr" ? "SteamVR" : "Monado"}
+        options={["Monado", "SteamVR"]}
+        onchange={(v) => setMode(v === "SteamVR" ? "steamvr" : "monado")}
+      />
+    </div>
+    <div class="item">
+      <div class="grow">
+        <div class="ititle">Minimalist mode</div>
+        <div class="hint">A small status window replaces Home. Its menu opens this window on the page you pick.</div>
+      </div>
+      <Toggle label="Minimalist mode" checked={minimal.on} onchange={() => toggleMinimal()} />
+    </div>
     <div class="item">
       <div class="grow">
         <div class="ititle">Keep running in the tray</div>

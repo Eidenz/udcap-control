@@ -20,7 +20,24 @@
         "minHeight": 640,
         "decorations": false,
         "resizable": true,
-        "center": true
+        "center": true,
+        "visible": false
+      },
+      {
+        "label": "mini",
+        "title": "UDCAP Control",
+        "url": "/mini",
+        "width": 380,
+        "height": 202,
+        "minWidth": 380,
+        "minHeight": 202,
+        "maxWidth": 380,
+        "maxHeight": 202,
+        "decorations": false,
+        "resizable": true,
+        "maximizable": false,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {

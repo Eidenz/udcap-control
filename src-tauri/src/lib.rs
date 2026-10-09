@@ -1,8 +1,10 @@
+mod runtime;
 mod server;
 mod shm;
 mod steamvr;
 mod udev;
 
+use runtime::RuntimeLinks;
 use server::ServerProc;
 use shm::{ShmMap, ShmView};
 use serde::Serialize;
@@ -17,6 +19,11 @@ struct AppState {
     shm: Mutex<Option<ShmMap>>,
     /// Closing the window hides it to the tray (server keeps running) instead of quitting.
     close_to_tray: AtomicBool,
+    /// Minimalist mode: the small "mini" status window is the app's home window,
+    /// and the full "main" window only opens on demand.
+    minimal: AtomicBool,
+    /// Which runtimes have the gloves' driver attached (refreshed in the background).
+    runtimes: Mutex<RuntimeLinks>,
 }
 
 #[derive(Serialize)]
@@ -27,6 +34,7 @@ struct Status {
     shm: Option<ShmView>,
     /// Why the shm couldn't be opened (e.g. version mismatch), if applicable.
     shm_error: Option<String>,
+    runtimes: RuntimeLinks,
 }
 
 fn ensure_shm(state: &AppState) -> Option<String> {
@@ -52,6 +60,7 @@ fn poll(state: State<AppState>) -> Status {
         server_running,
         shm,
         shm_error,
+        runtimes: *state.runtimes.lock().unwrap(),
     }
 }
 
@@ -84,7 +93,8 @@ fn resolve_server_bin(app: &tauri::AppHandle, override_path: &str) -> String {
     "udcap-server".to_string()
 }
 
-#[tauri::command]
+// Off the main thread, like the other blocking commands, so no window freezes.
+#[tauri::command(async)]
 fn server_start(
     app: tauri::AppHandle,
     state: State<AppState>,
@@ -125,7 +135,7 @@ fn stop_server(state: &AppState) {
     *g = None;
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn server_stop(state: State<AppState>) {
     stop_server(&state);
 }
@@ -135,21 +145,92 @@ fn set_close_to_tray(state: State<AppState>, enabled: bool) {
     state.close_to_tray.store(enabled, Ordering::Relaxed);
 }
 
-fn show_window(app: &tauri::AppHandle) {
-    if let Some(win) = app.get_webview_window("main") {
+// Two windows share the app: "main" (full) and "mini" (minimalist mode's
+// status window). "main" is never destroyed, only hidden: its webview runs the
+// polling loop that applies settings and plays the calibration cues.
+fn minimal(app: &tauri::AppHandle) -> bool {
+    app.try_state::<AppState>()
+        .is_some_and(|s| s.minimal.load(Ordering::Relaxed))
+}
+
+/// The window that stands for the app: the tray, a second launch and startup show it.
+fn home_label(app: &tauri::AppHandle) -> &'static str {
+    if minimal(app) {
+        "mini"
+    } else {
+        "main"
+    }
+}
+
+fn show_label(app: &tauri::AppHandle, label: &str) {
+    if let Some(win) = app.get_webview_window(label) {
         let _ = win.show();
         let _ = win.unminimize();
         let _ = win.set_focus();
     }
 }
 
+fn hide_label(app: &tauri::AppHandle, label: &str) {
+    if let Some(win) = app.get_webview_window(label) {
+        let _ = win.hide();
+    }
+}
+
+fn show_window(app: &tauri::AppHandle) {
+    show_label(app, home_label(app));
+}
+
+fn hide_all(app: &tauri::AppHandle) {
+    hide_label(app, "main");
+    hide_label(app, "mini");
+}
+
 fn toggle_window(app: &tauri::AppHandle) {
-    if let Some(win) = app.get_webview_window("main") {
-        if win.is_visible().unwrap_or(false) {
-            let _ = win.hide();
-        } else {
-            show_window(app);
+    let visible = app
+        .get_webview_window(home_label(app))
+        .is_some_and(|w| w.is_visible().unwrap_or(false));
+    if visible {
+        hide_all(app);
+    } else {
+        show_window(app);
+    }
+}
+
+// Startup can't wait for the webview to read the setting, so the mode is also
+// kept in a small file the next launch reads to pick its first window.
+fn minimal_file(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("minimal-mode"))
+}
+
+fn read_minimal(app: &tauri::AppHandle) -> bool {
+    minimal_file(app)
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .is_some_and(|s| s.trim() == "1")
+}
+
+/// Minimalist mode on or off. At `startup` the frontend reports the mode the
+/// window shown at launch should have had: a change swaps it for the other one.
+/// Otherwise (toggled in Settings, or setup just finished) the full window stays
+/// open and the mini window comes or goes.
+#[tauri::command]
+fn set_minimal_mode(app: tauri::AppHandle, state: State<AppState>, enabled: bool, startup: bool) {
+    if state.minimal.swap(enabled, Ordering::Relaxed) == enabled {
+        return;
+    }
+    if let Some(path) = minimal_file(&app) {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
         }
+        let _ = std::fs::write(path, if enabled { "1" } else { "0" });
+    }
+    if enabled {
+        show_label(&app, "mini");
+        if startup {
+            hide_label(&app, "main");
+        }
+    } else {
+        hide_label(&app, "mini");
+        show_label(&app, "main");
     }
 }
 
@@ -297,7 +378,8 @@ fn udev_status() -> udev::UdevStatus {
     udev::status()
 }
 
-#[tauri::command]
+// Waits on the password prompt.
+#[tauri::command(async)]
 fn udev_install() -> Result<(), String> {
     udev::install()
 }
@@ -368,8 +450,27 @@ pub fn run() {
             server: Mutex::new(ServerProc::new()),
             shm: Mutex::new(None),
             close_to_tray: AtomicBool::new(true),
+            minimal: AtomicBool::new(false),
+            runtimes: Mutex::new(RuntimeLinks::default()),
         })
         .setup(|app| {
+            // Both windows start hidden; show the one last used as home.
+            let handle = app.handle();
+            if let Some(state) = app.try_state::<AppState>() {
+                state.minimal.store(read_minimal(handle), Ordering::Relaxed);
+            }
+            show_window(handle);
+
+            // Walking /proc takes a few ms: keep it off the command thread.
+            let scanner = handle.clone();
+            std::thread::spawn(move || loop {
+                let links = runtime::scan();
+                if let Some(state) = scanner.try_state::<AppState>() {
+                    *state.runtimes.lock().unwrap() = links;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1500));
+            });
+
             // If the SteamVR driver is registered, refresh the installed copy from
             // the bundle so an app update auto-updates the driver.
             if let Ok(src) = app
@@ -408,17 +509,25 @@ pub fn run() {
             tray.build(app)?;
             Ok(())
         })
-        // Closing the window hides it to the tray when that's enabled (the
-        // default), so the server keeps the gloves running; otherwise it quits.
+        // Closing the home window hides the app to the tray when that's enabled
+        // (the default), so the server keeps the gloves running; otherwise it
+        // quits. In minimalist mode the full window just closes back to the mini
+        // one. Windows are only ever hidden: "main" runs the app's logic.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let to_tray = window
-                    .app_handle()
+                api.prevent_close();
+                let app = window.app_handle();
+                if window.label() != home_label(app) {
+                    let _ = window.hide();
+                    return;
+                }
+                let to_tray = app
                     .try_state::<AppState>()
                     .is_some_and(|s| s.close_to_tray.load(Ordering::Relaxed));
                 if to_tray {
-                    api.prevent_close();
-                    let _ = window.hide();
+                    hide_all(app);
+                } else {
+                    app.exit(0);
                 }
             }
         })
@@ -451,6 +560,7 @@ pub fn run() {
             save_envision_profile,
             save_debug_report,
             set_close_to_tray,
+            set_minimal_mode,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

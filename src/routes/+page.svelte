@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
     app,
     appMode,
@@ -13,8 +14,17 @@
     monadoNotice,
     closeMonadoGuide,
     syncCloseToTray,
+    setup,
+    finishSetup,
+    trackersFocus,
+    minimal,
+    stickNotice,
+    finishStickNotice,
+    requestStickCalibScroll,
     type Tab,
   } from "$lib/state.svelte";
+  import { sendCommand, setMinimalMode, CMD } from "$lib/api";
+  import { onAction, toMini, type MiniAction } from "$lib/windows";
   import MonadoGuide from "$lib/components/MonadoGuide.svelte";
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
@@ -26,9 +36,53 @@
   import DevicesScreen from "$lib/screens/Devices.svelte";
   import SettingsScreen from "$lib/screens/Settings.svelte";
   import DebugScreen from "$lib/screens/Debug.svelte";
+  import SetupScreen from "$lib/screens/Setup.svelte";
 
-  let tab = $state<Tab>("home");
+  // Minimalist mode: the mini window is home, so this one drops its Home tab.
+  const minimalOn = $derived(minimal.on && setup.done);
+  let tab = $state<Tab>(minimal.on && setup.done ? "hands" : "home");
   const go = (t: Tab) => (tab = t);
+  $effect(() => {
+    if (minimalOn && tab === "home") tab = "hands";
+  });
+
+  // Tell the backend which window is home. The first call reports the mode
+  // the launch window should have had (see set_minimal_mode).
+  let launching = true;
+  $effect(() => {
+    setMinimalMode(minimalOn, launching).catch(() => {});
+    launching = false;
+  });
+
+  // Setup hands over to the app: on the page it asks for, or (skipped) to the
+  // mini window alone in minimalist mode.
+  function setupFinished(next: Tab | null) {
+    if (next === "alignment") trackersFocus.request = true;
+    tab = next ?? (minimal.on ? "hands" : "home");
+    finishSetup();
+    if (!next && minimal.on) getCurrentWindow().hide();
+  }
+
+  async function openTab(t: Tab) {
+    tab = t;
+    const win = getCurrentWindow();
+    await win.show();
+    await win.unminimize();
+    await win.setFocus();
+  }
+  function act(a: MiniAction) {
+    if (a.kind === "hello") sendMeta();
+    else if (a.kind === "start") startServer();
+    else if (a.kind === "stop") stopServer();
+    else if (a.kind === "calibrate") {
+      sendCommand(CMD.CALIB_AUTO).catch(() => {});
+      openTab("hands");
+    } else if (a.kind === "open") openTab(a.tab);
+    else if (a.kind === "sticks") {
+      requestStickCalibScroll();
+      openTab("controls");
+    } else if (a.kind === "dismissSticks") finishStickNotice();
+  }
 
   onMount(() => {
     syncCloseToTray();
@@ -36,6 +90,8 @@
     // Unlock audio on the first interaction (webview autoplay policy).
     window.addEventListener("pointerdown", unlockAudio, { once: true });
     window.addEventListener("keydown", unlockAudio, { once: true });
+    const unlisten = onAction(act);
+    return () => unlisten.then((f) => f());
   });
   onDestroy(stopPolling);
 
@@ -44,6 +100,16 @@
   const running = $derived(app.status?.server_running ?? false);
   const live = $derived(!!shm && shm.server_pid !== 0);
   const linked = $derived(live && shm ? shm.hands.filter((h) => h.present && h.link === 3).length : 0);
+
+  // Keep the mini window's copy of what it can't read itself up to date.
+  const stickNudge = $derived(
+    live && !stickNotice.done && !!shm?.hands.some((h) => h.present && h.controller_version === 2),
+  );
+  const sendMeta = () =>
+    toMini({ mode: appMode.mode, busy: server.busy, error: server.error, stickNotice: stickNudge });
+  $effect(() => {
+    sendMeta();
+  });
 
   const serverLabel = $derived(live ? "Server running" : running ? "Server starting" : "Server stopped");
   const gloves = $derived(linked === 0 ? "no gloves yet" : linked === 1 ? "1 glove linked" : "2 gloves linked");
@@ -73,74 +139,78 @@
   </button>
 {/snippet}
 
-<div class="app">
-  <nav class="side" aria-label="Main" data-tauri-drag-region>
-    <div class="brand" data-tauri-drag-region>
-      <div class="logo" aria-hidden="true">U</div>
-      <div data-tauri-drag-region>
-        <div class="bname">UDCAP Control</div>
-        <div class="bsub">Udexreal gloves</div>
+{#if !setup.done}
+  <SetupScreen onfinish={setupFinished} />
+{:else}
+  <div class="app">
+    <nav class="side" aria-label="Main" data-tauri-drag-region>
+      <div class="brand" data-tauri-drag-region>
+        <div class="logo" aria-hidden="true">U</div>
+        <div data-tauri-drag-region>
+          <div class="bname">UDCAP Control</div>
+          <div class="bsub">Udexreal gloves</div>
+        </div>
       </div>
-    </div>
 
-    <section class="server" aria-label="Server">
-      <div class="srow">
-        <span class="dot" class:on={live} class:warn={running && !live}></span>
-        <span class="slabel">{serverLabel}</span>
+      <section class="server" aria-label="Server">
+        <div class="srow">
+          <span class="dot" class:on={live} class:warn={running && !live}></span>
+          <span class="slabel">{serverLabel}</span>
+        </div>
+        <div class="smeta">{serverMeta}</div>
+        {#if running}
+          <button class="btn tonal sm" disabled={server.busy} onclick={stopServer}>{server.busy ? "Stopping…" : "Stop server"}</button>
+        {:else if !live}
+          <button class="btn filled sm" disabled={server.busy} onclick={startServer}>{server.busy ? "Starting…" : "Start server"}</button>
+        {/if}
+        {#if server.error}<p class="serr">{server.error}</p>{/if}
+      </section>
+
+      <div class="runtime">
+        <span class="section-label">Runtime</span>
+        <Segmented
+          full
+          value={appMode.mode === "steamvr" ? "SteamVR" : "Monado"}
+          options={["Monado", "SteamVR"]}
+          onchange={(v) => setMode(v === "SteamVR" ? "steamvr" : "monado")}
+        />
       </div>
-      <div class="smeta">{serverMeta}</div>
-      {#if running}
-        <button class="btn tonal sm" disabled={server.busy} onclick={stopServer}>{server.busy ? "Stopping…" : "Stop server"}</button>
-      {:else if !live}
-        <button class="btn filled sm" disabled={server.busy} onclick={startServer}>{server.busy ? "Starting…" : "Start server"}</button>
+
+      <div class="nav">
+        {#each nav as item}
+          {#if !(minimalOn && item.id === "home")}{@render navItem(item)}{/if}
+        {/each}
+      </div>
+
+      <div class="nav bottom">
+        {@render navItem(settingsItem)}
+      </div>
+    </nav>
+
+    <main class="main">
+      {#if tab === "home"}
+        <HomeScreen {go} />
+      {:else if tab === "hands"}
+        <HandsScreen />
+      {:else if tab === "controls"}
+        <ControlsScreen />
+      {:else if tab === "alignment"}
+        <AlignmentScreen />
+      {:else if tab === "devices"}
+        <DevicesScreen />
+      {:else if tab === "settings"}
+        <SettingsScreen {go} />
+      {:else}
+        <Page title="Diagnostics" subtitle="Live readings, calibration quality and a report to share">
+          {#snippet actions()}
+            <button class="btn text sm" onclick={() => (tab = "settings")}><Icon name="back" size={16} />Settings</button>
+          {/snippet}
+          <DebugScreen />
+        </Page>
       {/if}
-      {#if server.error}<p class="serr">{server.error}</p>{/if}
-    </section>
-
-    <div class="runtime">
-      <span class="section-label">Runtime</span>
-      <Segmented
-        full
-        value={appMode.mode === "steamvr" ? "SteamVR" : "Monado"}
-        options={["Monado", "SteamVR"]}
-        onchange={(v) => setMode(v === "SteamVR" ? "steamvr" : "monado")}
-      />
-    </div>
-
-    <div class="nav">
-      {#each nav as item}
-        {@render navItem(item)}
-      {/each}
-    </div>
-
-    <div class="nav bottom">
-      {@render navItem(settingsItem)}
-    </div>
-  </nav>
-
-  <main class="main">
-    {#if tab === "home"}
-      <HomeScreen {go} />
-    {:else if tab === "hands"}
-      <HandsScreen />
-    {:else if tab === "controls"}
-      <ControlsScreen />
-    {:else if tab === "alignment"}
-      <AlignmentScreen />
-    {:else if tab === "devices"}
-      <DevicesScreen />
-    {:else if tab === "settings"}
-      <SettingsScreen {go} />
-    {:else}
-      <Page title="Diagnostics" subtitle="Live readings, calibration quality and a report to share">
-        {#snippet actions()}
-          <button class="btn text sm" onclick={() => (tab = "settings")}><Icon name="back" size={16} />Settings</button>
-        {/snippet}
-        <DebugScreen />
-      </Page>
-    {/if}
-  </main>
-</div>
+    </main>
+  </div>
+{/if}
 
 <MonadoGuide open={monadoNotice.guideOpen} onclose={closeMonadoGuide} />
 
